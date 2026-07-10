@@ -1,7 +1,7 @@
 # Beer CSS conventions for CSAM
 
 Repo location: `docs/beercss-conventions.md`. Companion to the vendored upstream
-reference at `docs/vendor/beercss-llms.md` (Beer CSS's official llms.md, MIT
+reference at `docs/beercss-llms.md` (Beer CSS's official llms.md, MIT
 licensed, **pinned to beercss@4.0.23** — re-vendor from the matching tag when the
 pin changes, never from an unpinned main branch). Agents: the vendored file is
 the authoritative vocabulary for elements, helpers, and settings; this file adds

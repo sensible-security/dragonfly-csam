@@ -1,0 +1,13 @@
+.git
+.vscode
+.agents
+node_modules
+_fresh
+docs
+spikes
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+Dockerfile
+.dockerignore

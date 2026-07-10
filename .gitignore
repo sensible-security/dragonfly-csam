@@ -9,3 +9,9 @@
 _fresh/
 # npm dependencies
 node_modules/
+
+# Local SQLite/Turso database files (fixtures under tests/fixtures/ are allowed)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

@@ -1,0 +1,10 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@tursodatabase/database": "npm:@tursodatabase/database@0.6.1"
+  },
+  "tasks": {
+    "spike": "deno run --allow-read --allow-write --allow-ffi --allow-env spike.ts",
+    "spike:all": "deno run -A spike.ts"
+  }
+}

@@ -14,13 +14,33 @@ import { TursoDeviceRepository } from "./repositories/turso/device_repository.ts
 import { TursoServiceProviderRepository } from "./repositories/turso/service_provider_repository.ts";
 import { TursoSoftwareRepository } from "./repositories/turso/software_repository.ts";
 import { TursoSourceRecordRepository } from "./repositories/turso/source_record_repository.ts";
+import { TursoIngestionBatchRepository } from "./repositories/turso/ingestion_batch_repository.ts";
+import { TursoReviewQueueRepository } from "./repositories/turso/review_queue_repository.ts";
 import type {
   IAuditLogRepository,
   IDeviceRepository,
+  IIngestionBatchRepository,
+  IReviewQueueRepository,
   IServiceProviderRepository,
   ISoftwareRepository,
   ISourceRecordRepository,
 } from "./repositories/interfaces/mod.ts";
+import {
+  type ConnectorRegistry,
+  createDefaultRegistry,
+} from "../connectors/mod.ts";
+import {
+  DefaultIngestionService,
+  type IngestionService,
+} from "../services/ingestion_service.ts";
+import {
+  DefaultReconciliationService,
+  type ReconciliationService,
+} from "../services/reconciliation_service.ts";
+import {
+  DefaultReviewService,
+  type ReviewService,
+} from "../services/review_service.ts";
 
 // The typed bundle exposed via Fresh app state. Interface types only — no
 // driver, no concrete class, no SQL leaks past this boundary.
@@ -30,10 +50,23 @@ export interface Repositories {
   readonly serviceProviders: IServiceProviderRepository;
   readonly auditLog: IAuditLogRepository;
   readonly sourceRecords: ISourceRecordRepository;
+  readonly ingestionBatches: IIngestionBatchRepository;
+  readonly reviewQueue: IReviewQueueRepository;
+}
+
+// Domain services exposed on app state alongside the repositories. Route
+// handlers resolve these from state; they never construct them or see the
+// driver (AGENTS.md §4.1).
+export interface Services {
+  readonly ingestion: IngestionService;
+  readonly reconciliation: ReconciliationService;
+  readonly review: ReviewService;
 }
 
 export interface Container {
   readonly repositories: Repositories;
+  readonly services: Services;
+  readonly registry: ConnectorRegistry;
   // Closes the underlying connection. Used by tests and graceful shutdown.
   close(): Promise<void>;
 }
@@ -73,10 +106,42 @@ export async function createContainer(
     serviceProviders: new TursoServiceProviderRepository(db),
     auditLog: new TursoAuditLogRepository(db),
     sourceRecords: new TursoSourceRecordRepository(db),
+    ingestionBatches: new TursoIngestionBatchRepository(db),
+    reviewQueue: new TursoReviewQueueRepository(db),
   };
+
+  // The connector registry + the two-stage pipeline (Ingestion → Reconciliation)
+  // and the human review service, constructed once and wired to the interfaces.
+  const registry = createDefaultRegistry();
+  const reconciliation = new DefaultReconciliationService({
+    devices: repositories.devices,
+    software: repositories.software,
+    sourceRecords: repositories.sourceRecords,
+    reviewQueue: repositories.reviewQueue,
+    auditLog: repositories.auditLog,
+    batches: repositories.ingestionBatches,
+    registry,
+  });
+  const ingestion = new DefaultIngestionService({
+    registry,
+    sourceRecords: repositories.sourceRecords,
+    batches: repositories.ingestionBatches,
+    reconciliation,
+  });
+  const review = new DefaultReviewService({
+    devices: repositories.devices,
+    software: repositories.software,
+    sourceRecords: repositories.sourceRecords,
+    reviewQueue: repositories.reviewQueue,
+    auditLog: repositories.auditLog,
+  });
+
+  const services: Services = { ingestion, reconciliation, review };
 
   return {
     repositories,
+    services,
+    registry,
     close: () => db.close(),
   };
 }

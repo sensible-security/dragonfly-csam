@@ -208,6 +208,55 @@ export class TursoDeviceRepository implements IDeviceRepository {
     return row ? toDevice(row) : null;
   }
 
+  async findByCloudInstanceId(cloudInstanceId: string): Promise<Device[]> {
+    const stmt = await this.db.prepare(
+      "SELECT * FROM devices WHERE cloud_instance_id = ? ORDER BY created_at, id",
+    );
+    const rows = await stmt.all(cloudInstanceId) as DeviceRow[];
+    return rows.map(toDevice);
+  }
+
+  async findByHardwareSerial(hardwareSerial: string): Promise<Device[]> {
+    const stmt = await this.db.prepare(
+      "SELECT * FROM devices WHERE hardware_serial = ? ORDER BY created_at, id",
+    );
+    const rows = await stmt.all(hardwareSerial) as DeviceRow[];
+    return rows.map(toDevice);
+  }
+
+  async findByMacAddresses(macAddresses: string[]): Promise<Device[]> {
+    if (macAddresses.length === 0) return [];
+    // Normalize to the canonical stored form before matching.
+    const normalized = macAddresses.map(normalizeMac);
+    const placeholders = normalized.map(() => "?").join(", ");
+    const stmt = await this.db.prepare(
+      `SELECT DISTINCT d.* FROM devices d
+       JOIN network_interfaces ni ON ni.device_id = d.id
+       WHERE ni.mac_address IN (${placeholders})
+       ORDER BY d.created_at, d.id`,
+    );
+    const rows = await stmt.all(...normalized) as DeviceRow[];
+    return rows.map(toDevice);
+  }
+
+  async findByHostnameDomain(
+    hostname: string,
+    domain: string | null,
+  ): Promise<Device[]> {
+    const stmt = domain === null
+      ? await this.db.prepare(
+        "SELECT * FROM devices WHERE hostname = ? AND domain IS NULL ORDER BY created_at, id",
+      )
+      : await this.db.prepare(
+        "SELECT * FROM devices WHERE hostname = ? AND domain = ? ORDER BY created_at, id",
+      );
+    const rows =
+      (domain === null
+        ? await stmt.all(hostname)
+        : await stmt.all(hostname, domain)) as DeviceRow[];
+    return rows.map(toDevice);
+  }
+
   async list(filter: DeviceFilter, page: PageRequest): Promise<Page<Device>> {
     const { where, params } = buildWhere([
       ["status = ?", filter.status],

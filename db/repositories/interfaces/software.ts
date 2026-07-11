@@ -109,6 +109,13 @@ export interface ISoftwareRepository {
   create(input: CreateSoftware, ctx: AuditContext): Promise<Software>;
   getById(id: string): Promise<Software | null>;
   list(filter: SoftwareFilter, page: PageRequest): Promise<Page<Software>>;
+  // Reconciliation exact-identity match (PRD §6.1): (title, publisher, version)
+  // is UNIQUE in the schema, so at most one row.
+  findByIdentity(
+    title: string,
+    publisher: string,
+    version: string,
+  ): Promise<Software | null>;
   update(
     id: string,
     patch: UpdateSoftware,

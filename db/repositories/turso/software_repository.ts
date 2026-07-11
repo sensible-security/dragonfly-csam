@@ -219,6 +219,20 @@ export class TursoSoftwareRepository implements ISoftwareRepository {
     return row ? toSoftware(row) : null;
   }
 
+  async findByIdentity(
+    title: string,
+    publisher: string,
+    version: string,
+  ): Promise<Software | null> {
+    const stmt = await this.db.prepare(
+      "SELECT * FROM software WHERE title = ? AND publisher = ? AND version = ?",
+    );
+    const row = await stmt.get(title, publisher, version) as
+      | SoftwareRow
+      | undefined;
+    return row ? toSoftware(row) : null;
+  }
+
   async list(
     filter: SoftwareFilter,
     page: PageRequest,

@@ -1,0 +1,5 @@
+Host,Serial,MAC,Class,Type,Env,Owner,Dept,Crit,Impact
+goodhost,SER-9001,AA:BB:CC:01:02:03,enterprise_asset,server,physical,owner1,Engineering,high,ok row
+badcrit,SER-9002,AA:BB:CC:01:02:04,enterprise_asset,server,physical,owner1,Engineering,ludicrous,bad enum
+,,,enterprise_asset,server,physical,owner1,Engineering,low,missing hostname and keys
+duphost,SER-9001,AA:BB:CC:01:02:05,enterprise_asset,server,physical,owner1,Engineering,medium,duplicate serial

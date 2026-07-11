@@ -127,8 +127,67 @@ export function validSourceRow(overrides: Row = {}): Row {
     id: crypto.randomUUID(),
     source_type: "manual",
     name: `fixture-source-${crypto.randomUUID()}`,
+    precedence: 50,
     created_at: ts,
     updated_at: ts,
+    ...overrides,
+  };
+}
+
+export function validIngestionBatchRow(
+  sourceId: string,
+  overrides: Row = {},
+): Row {
+  const ts = now();
+  return {
+    id: crypto.randomUUID(),
+    source_id: sourceId,
+    connector_id: "manual",
+    status: "running",
+    total_rows: 0,
+    staged_count: 0,
+    quarantined_count: 0,
+    actor_type: "connector",
+    actor_id: "manual",
+    started_at: ts,
+    finished_at: null,
+    created_at: ts,
+    ...overrides,
+  };
+}
+
+export function validIngestionErrorRow(
+  batchId: string,
+  overrides: Row = {},
+): Row {
+  return {
+    id: crypto.randomUUID(),
+    batch_id: batchId,
+    row_ref: "1",
+    external_id: null,
+    raw_row: "{}",
+    issues_json: "[]",
+    created_at: now(),
+    ...overrides,
+  };
+}
+
+export function validReviewQueueRow(
+  sourceRecordId: string,
+  overrides: Row = {},
+): Row {
+  return {
+    id: crypto.randomUUID(),
+    source_record_id: sourceRecordId,
+    entity_kind: "device",
+    reason: "new_asset",
+    confidence: "medium",
+    candidates_json: "[]",
+    attributes_json: "{}",
+    status: "pending",
+    resolved_by: null,
+    resolved_at: null,
+    created_at: now(),
     ...overrides,
   };
 }

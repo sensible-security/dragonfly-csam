@@ -11,6 +11,7 @@ import {
   type Page,
   type PageRequest,
   type ProvenanceEntityType,
+  type ReconciliationStatus,
   type Source,
   type SourceRecord,
   type UpsertSourceRecord,
@@ -27,6 +28,7 @@ interface SourceRow {
   id: string;
   source_type: string;
   name: string;
+  precedence: number;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +60,7 @@ function toSource(row: SourceRow): Source {
     id: row.id,
     sourceType: row.source_type,
     name: row.name,
+    precedence: row.precedence,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -101,6 +104,7 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
       id: crypto.randomUUID(),
       sourceType: input.sourceType,
       name: input.name,
+      precedence: input.precedence ?? 50,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -108,13 +112,14 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
     try {
       return await withTransaction(this.db, async () => {
         const stmt = await this.db.prepare(
-          `INSERT INTO sources (id, source_type, name, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO sources (id, source_type, name, precedence, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         );
         await stmt.run(
           source.id,
           source.sourceType,
           source.name,
+          source.precedence,
           source.createdAt,
           source.updatedAt,
         );
@@ -135,6 +140,12 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
   async getSourceByName(name: string): Promise<Source | null> {
     const stmt = await this.db.prepare("SELECT * FROM sources WHERE name = ?");
     const row = await stmt.get(name) as SourceRow | undefined;
+    return row ? toSource(row) : null;
+  }
+
+  async getSourceById(id: string): Promise<Source | null> {
+    const stmt = await this.db.prepare("SELECT * FROM sources WHERE id = ?");
+    const row = await stmt.get(id) as SourceRow | undefined;
     return row ? toSource(row) : null;
   }
 
@@ -168,10 +179,12 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
             lastSeen: input.observedAt,
             updatedAt: ts,
           };
+          // Re-observation re-enters reconciliation: reset the outcome to
+          // 'pending' so the refreshed record is picked up again (PRD §6.4).
           const stmt = await this.db.prepare(
             `UPDATE source_records SET
                entity_kind = ?, raw_payload = ?, normalized_payload = ?,
-               last_seen = ?, updated_at = ?
+               last_seen = ?, updated_at = ?, reconciliation_status = 'pending'
              WHERE id = ?`,
           );
           await stmt.run(
@@ -290,6 +303,16 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
     return row ? toRecord(row) : null;
   }
 
+  async listPendingBySource(sourceId: string): Promise<SourceRecord[]> {
+    const stmt = await this.db.prepare(
+      `SELECT * FROM source_records
+       WHERE source_id = ? AND reconciliation_status = 'pending'
+       ORDER BY first_seen, id`,
+    );
+    const rows = await stmt.all(sourceId) as RecordRow[];
+    return rows.map(toRecord);
+  }
+
   async setFieldProvenance(
     entityType: ProvenanceEntityType,
     entityId: string,
@@ -345,5 +368,34 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
     );
     const rows = await stmt.all(entityType, entityId) as ProvenanceRow[];
     return rows.map(toProvenance);
+  }
+
+  // Staging bookkeeping (not itself audited — the merge/create it records
+  // writes the audit trail). Stamps outcome + resolved canonical target.
+  async setReconciliationOutcome(
+    recordId: string,
+    status: ReconciliationStatus,
+    matchedEntityType: ProvenanceEntityType | null = null,
+    matchedEntityId: string | null = null,
+  ): Promise<void> {
+    const existsStmt = await this.db.prepare(
+      "SELECT id FROM source_records WHERE id = ?",
+    );
+    if (!await existsStmt.get(recordId)) {
+      throw new NotFoundError("source_record", recordId);
+    }
+    const stmt = await this.db.prepare(
+      `UPDATE source_records SET
+         reconciliation_status = ?, matched_entity_type = ?,
+         matched_entity_id = ?, reconciled_at = ?
+       WHERE id = ?`,
+    );
+    await stmt.run(
+      status,
+      matchedEntityType,
+      matchedEntityId,
+      nowIso(),
+      recordId,
+    );
   }
 }

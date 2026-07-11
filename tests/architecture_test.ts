@@ -8,10 +8,12 @@ import { fromFileUrl } from "@std/path";
 
 const ROOT = fromFileUrl(new URL("../", import.meta.url));
 
-// Layers that must depend on interfaces only (AGENTS.md §4.1).
+// Layers that must depend on interfaces only (AGENTS.md §4.1). connectors/ is
+// pure (PRD §4.2/§11.1): it produces observations and never touches the DB.
 const SCANNED_DIRS = [
   "routes",
   "services",
+  "connectors",
   "islands",
   "components",
   "db/repositories/interfaces",

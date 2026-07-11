@@ -13,6 +13,8 @@ app.use(staticFiles());
 const container = await getContainer();
 app.use((ctx) => {
   ctx.state.repositories = container.repositories;
+  ctx.state.services = container.services;
+  ctx.state.registry = container.registry;
   return ctx.next();
 });
 

@@ -1,0 +1,51 @@
+Host,Serial,MAC,Class,Type,Env,Owner,Dept,Crit,Impact
+host01,SER-1001,AA:BB:CC:01:07:0D,enterprise_asset,server,physical,owner1,Engineering,low,business unit Engineering
+host02,SER-1002,AA:BB:CC:02:0E:1A,enterprise_asset,server,physical,owner2,Finance,medium,business unit Finance
+host03,SER-1003,AA:BB:CC:03:15:27,enterprise_asset,server,physical,owner3,Sales,medium,business unit Sales
+host04,SER-1004,AA:BB:CC:04:1C:34,enterprise_asset,server,physical,owner4,Engineering,low,business unit Engineering
+host05,SER-1005,AA:BB:CC:05:23:41,enterprise_asset,server,physical,owner5,Support,mission_critical,business unit Support
+host06,SER-1006,AA:BB:CC:06:2A:4E,enterprise_asset,server,physical,owner6,Engineering,low,business unit Engineering
+host07,SER-1007,AA:BB:CC:07:31:5B,enterprise_asset,server,physical,owner0,Engineering,medium,business unit Engineering
+host08,SER-1008,AA:BB:CC:08:38:68,enterprise_asset,server,physical,owner1,Sales,low,business unit Sales
+host09,SER-1009,AA:BB:CC:09:3F:75,enterprise_asset,server,physical,owner2,Support,medium,business unit Support
+host10,SER-1010,AA:BB:CC:0A:46:82,enterprise_asset,server,physical,owner3,Support,mission_critical,business unit Support
+host11,SER-1011,AA:BB:CC:0B:4D:8F,enterprise_asset,server,physical,owner4,Sales,mission_critical,business unit Sales
+host12,SER-1012,AA:BB:CC:0C:54:9C,enterprise_asset,server,physical,owner5,Support,high,business unit Support
+host13,SER-1013,AA:BB:CC:0D:5B:A9,enterprise_asset,server,physical,owner6,Engineering,medium,business unit Engineering
+host14,SER-1014,AA:BB:CC:0E:62:B6,enterprise_asset,server,physical,owner0,IT Ops,high,business unit IT Ops
+host15,SER-1015,AA:BB:CC:0F:69:C3,enterprise_asset,server,physical,owner1,Finance,medium,business unit Finance
+host16,SER-1016,AA:BB:CC:10:70:D0,enterprise_asset,server,physical,owner2,Sales,high,business unit Sales
+host17,SER-1017,AA:BB:CC:11:77:DD,enterprise_asset,server,physical,owner3,Engineering,low,business unit Engineering
+host18,SER-1018,AA:BB:CC:12:7E:EA,enterprise_asset,server,physical,owner4,IT Ops,low,business unit IT Ops
+host19,SER-1019,AA:BB:CC:13:85:F7,enterprise_asset,server,physical,owner5,Finance,high,business unit Finance
+host20,SER-1020,AA:BB:CC:14:8C:04,enterprise_asset,server,physical,owner6,Support,high,business unit Support
+host21,SER-1021,AA:BB:CC:15:93:11,enterprise_asset,server,physical,owner0,Engineering,mission_critical,business unit Engineering
+host22,SER-1022,AA:BB:CC:16:9A:1E,enterprise_asset,server,physical,owner1,Support,low,business unit Support
+host23,SER-1023,AA:BB:CC:17:A1:2B,enterprise_asset,server,physical,owner2,IT Ops,low,business unit IT Ops
+host24,SER-1024,AA:BB:CC:18:A8:38,enterprise_asset,server,physical,owner3,Support,high,business unit Support
+host25,SER-1025,AA:BB:CC:19:AF:45,enterprise_asset,server,physical,owner4,Support,high,business unit Support
+host26,SER-1026,AA:BB:CC:1A:B6:52,enterprise_asset,server,physical,owner5,Support,medium,business unit Support
+host27,SER-1027,AA:BB:CC:1B:BD:5F,enterprise_asset,server,physical,owner6,Engineering,low,business unit Engineering
+host28,SER-1028,AA:BB:CC:1C:C4:6C,enterprise_asset,server,physical,owner0,Sales,high,business unit Sales
+host29,SER-1029,AA:BB:CC:1D:CB:79,enterprise_asset,server,physical,owner1,Engineering,medium,business unit Engineering
+host30,SER-1030,AA:BB:CC:1E:D2:86,enterprise_asset,server,physical,owner2,Engineering,mission_critical,business unit Engineering
+host31,SER-1031,AA:BB:CC:1F:D9:93,enterprise_asset,server,physical,owner3,Finance,mission_critical,business unit Finance
+host32,SER-1032,AA:BB:CC:20:E0:A0,enterprise_asset,server,physical,owner4,Finance,medium,business unit Finance
+host33,SER-1033,AA:BB:CC:21:E7:AD,enterprise_asset,server,physical,owner5,Finance,high,business unit Finance
+host34,SER-1034,AA:BB:CC:22:EE:BA,enterprise_asset,server,physical,owner6,Sales,high,business unit Sales
+host35,SER-1035,AA:BB:CC:23:F5:C7,enterprise_asset,server,physical,owner0,Engineering,medium,business unit Engineering
+host36,SER-1036,AA:BB:CC:24:FC:D4,enterprise_asset,server,physical,owner1,Support,medium,business unit Support
+host37,SER-1037,AA:BB:CC:25:03:E1,enterprise_asset,server,physical,owner2,Sales,mission_critical,business unit Sales
+host38,SER-1038,AA:BB:CC:26:0A:EE,enterprise_asset,server,physical,owner3,IT Ops,high,business unit IT Ops
+host39,SER-1039,AA:BB:CC:27:11:FB,enterprise_asset,server,physical,owner4,Support,medium,business unit Support
+host40,SER-1040,AA:BB:CC:28:18:08,enterprise_asset,server,physical,owner5,Finance,low,business unit Finance
+host41,SER-1041,AA:BB:CC:29:1F:15,enterprise_asset,server,physical,owner6,Sales,low,business unit Sales
+host42,SER-1042,AA:BB:CC:2A:26:22,enterprise_asset,server,physical,owner0,Finance,mission_critical,business unit Finance
+host43,SER-1043,AA:BB:CC:2B:2D:2F,enterprise_asset,server,physical,owner1,Finance,low,business unit Finance
+host44,SER-1044,AA:BB:CC:2C:34:3C,enterprise_asset,server,physical,owner2,Sales,high,business unit Sales
+host45,SER-1045,AA:BB:CC:2D:3B:49,enterprise_asset,server,physical,owner3,Sales,mission_critical,business unit Sales
+host46,SER-1046,AA:BB:CC:2E:42:56,enterprise_asset,server,physical,owner4,IT Ops,mission_critical,business unit IT Ops
+host47,SER-1047,AA:BB:CC:2F:49:63,enterprise_asset,server,physical,owner5,Sales,high,business unit Sales
+host48,SER-1048,AA:BB:CC:30:50:70,enterprise_asset,server,physical,owner6,Sales,medium,business unit Sales
+host49,SER-1049,AA:BB:CC:31:57:7D,enterprise_asset,server,physical,owner0,Support,high,business unit Support
+host50,SER-1050,AA:BB:CC:32:5E:8A,enterprise_asset,server,physical,owner1,Support,mission_critical,business unit Support

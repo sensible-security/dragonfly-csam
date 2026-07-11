@@ -1,6 +1,6 @@
 # PRD: Dragonfly CSAM — Ingestion Pipeline (Connectors & Reconciliation)
 
-**Status:** DRAFT — awaiting human gate approval (Phase 3 gate, DEVELOPMENT_PLAN §Phase 3)
+**Status:** APPROVED — gate questions resolved 2026-07-11 (see §12)
 **Source prompt:** DEVELOPMENT_PLAN.md, Prompt 3.1
 **Compliance scope:** CIS Controls v8.1 Safeguards 1.3, 1.4 (design-for), 1.5, 2.4 · builds on 1.1, 1.2, 2.1–2.3 · NIST CSF 2.0 ID.AM-01, -02
 **Authority:** AGENTS.md §4.2 (connector/ingestion framework — first-class), §2.7 (untrusted data), §4.4 (audit), §8 (boundaries)
@@ -281,11 +281,16 @@ Ambiguous matches and new-asset-needing-enrichment items land here for a human (
 ```ts
 // services/review_service.ts
 export interface ReviewService {
-  list(filter: ReviewFilter, page: PageRequest): Promise<Page<ReviewItem>>;
+  // Sortable/filterable listing (gate decision 1) — the queue is worked in bulk.
+  list(filter: ReviewFilter, sort: ReviewSort, page: PageRequest): Promise<Page<ReviewItem>>;
   // Human resolutions — each writes audit entries and closes the item.
   merge(itemId: string, targetEntityId: string, ctx: AuditContext): Promise<void>;  // confirm a candidate
   createNew(itemId: string, enrichment: RequiredFields, ctx: AuditContext): Promise<void>; // promote w/ criticality+business_impact
   reject(itemId: string, reason: string, ctx: AuditContext): Promise<void>;         // not our asset / duplicate noise
+  // Bulk enrichment (gate decision 1): promote many new_asset items at once,
+  // applying the SAME criticality (+ business_impact) to each. Per-item outcome
+  // returned so partial failures (e.g. an item no longer pending) surface.
+  bulkCreateNew(itemIds: string[], enrichment: RequiredFields, ctx: AuditContext): Promise<BulkResult>;
 }
 
 export interface ReviewItem {
@@ -295,14 +300,37 @@ export interface ReviewItem {
   reason: "ambiguous_match" | "conflicting_field" | "new_asset";
   confidence: "high" | "medium" | "ambiguous";
   candidates: { entityId: string; matchedKey: MatchKeyName; score: number; conflicts: string[] }[];
+  // Projected observation attributes for sort/filter/scan without opening each
+  // item (from the staged normalized_payload): hostname/title, source, type, etc.
+  attributes: Record<string, string | null>;
   status: "pending" | "merged" | "rejected" | "created_new";
   createdAt: string;
   resolvedBy?: string;
   resolvedAt?: string;
 }
+
+export interface ReviewFilter {
+  status?: "pending" | "merged" | "rejected" | "created_new"; // defaults to pending
+  entityKind?: "device" | "software";
+  reason?: "ambiguous_match" | "conflicting_field" | "new_asset";
+  confidence?: "high" | "medium" | "ambiguous";
+  sourceId?: string;
+  attributeContains?: { field: string; value: string }; // e.g. hostname contains "web"
+}
+
+export interface ReviewSort {
+  // Sort by any projected attribute or a top-level column (createdAt, confidence, …).
+  by: string;
+  dir: "asc" | "desc";
+}
+
+export interface BulkResult {
+  succeeded: string[];
+  failed: { itemId: string; code: string; message: string }[];
+}
 ```
 
-Resolution actor is `actor_type = 'user'`. `createNew` requires the enrichment fields the source couldn't supply and creates the asset `pending_review`/`unauthorized`.
+Resolution actor is `actor_type = 'user'`. `createNew`/`bulkCreateNew` require the enrichment fields (criticality + business_impact) the source couldn't supply and create each asset `pending_review`/`unauthorized`. **Bulk workflow (gate decision 1):** an analyst filters the queue (e.g. `new_asset` devices from one scanner), sorts by a shared attribute (department, subnet, OS), multi-selects the rows that share a business criticality, and applies one criticality + business_impact to all of them in a single audited action — each promoted asset still gets its own `create` audit entry. This is the efficiency path for draining a queue full of newly-discovered devices.
 
 ---
 
@@ -405,6 +433,7 @@ Composition root wires the two new repositories and the three services into app 
 - **Reconciliation unit tests (the crown jewels):** unique strong-key → auto-merge; **two sources, same MAC, different hostnames → queued, NOT merged** (gate case); multiple candidates → queue; no-match + `providesRequiredFields:false` → review; no-match + `true` → create `pending_review`; field precedence (higher rank overwrites, manual override immune, equal rank → recency); `last_seen` refresh without spurious `updated_at`/audit noise.
 - **Connector unit tests:** `normalize` is pure and total (bad row → `RowError`, never throws); CSV column-mapping + malformed-row quarantine with the exact error report; scanner envelope validation (bad envelope → 400, bad observation → per-row quarantine); untrusted-payload round-trips verbatim and is never interpreted (AGENTS.md §2.7).
 - **Schema/enum-parity tests:** every new CHECK in 0002 rejects an out-of-enum value; the `sources.source_type` rebuild preserves existing rows; TS enum arrays ↔ SQL CHECK lists set-equal (same harness as Slice A6).
+- **Review-queue tests:** `list` filters (status/entityKind/reason/confidence/source/attribute-contains) and sorts by a projected attribute; `bulkCreateNew` promotes N selected `new_asset` items with one criticality + business_impact, writing one `create` audit entry each, and reports per-item failures (e.g. an already-resolved item) without aborting the rest.
 - **Auth-stub tests:** ingest endpoint 401 without key, 200 with configured key, actor recorded as `connector`.
 - **End-to-end gate test:** 50-device CSV + overlapping scanner JSON → duplicates reconcile, exactly one deliberate ambiguity queued, every merge produced an audit entry.
 - Temp-file DB per test (WAL sidecar cleanup); fixtures synthetic only, under `tests/fixtures/`.
@@ -421,15 +450,15 @@ Composition root wires the two new repositories and the three services into app 
 2. One `Connector` interface; three connectors implemented as pure objects registered in one registry; a fourth (DHCP) addable without service/engine edits (demonstrated by §10 being config-only).
 3. Reconciliation outcomes match §6.2 exactly, proven by unit tests including the same-MAC/different-hostname queueing case.
 4. Field-level precedence (§6.3) resolves conflicts deterministically; manual overrides survive automated re-observation.
-5. Malformed input is quarantined with a per-row downloadable error report; valid-but-ambiguous input is queued; neither corrupts canonical inventory.
+5. Malformed input is quarantined with a per-row downloadable error report; valid-but-ambiguous input is queued; neither corrupts canonical inventory. The review queue is sortable/filterable and supports bulk criticality enrichment across multi-selected `new_asset` items (gate decision 1).
 6. The Phase 3 gate end-to-end test passes; every merge wrote an audit entry.
 7. `connectors/` and `services/` contain zero SQL/driver imports (architecture-boundary test still green); `0002` is additive and `0001` untouched.
 
 ---
 
-## 12. Gate Questions (need a human decision before /plan)
+## 12. Gate Decisions (resolved 2026-07-11)
 
-1. **New-asset-from-automated-source → review queue, not silent create (Assumption 1).** This is the cleanest resolution of the NOT-NULL-criticality vs. scanner-can't-supply-it conflict and matches the Safeguard 1.3/1.4 "unknown asset appeared" workflow. **Confirm**, or prefer auto-create with a mandated default criticality (which the CIS taxonomy has no value for)?
-2. **Field precedence policy (Assumption 2): manual-override-wins → source `precedence` rank → recency**, with default ranks manual 100 / cloud 80 / scanner 50 / csv 40 / dhcp 20. **Confirm the policy and the default ranks**, or specify a different authority ordering?
-3. **`sources.source_type` CHECK added now via a table rebuild in 0002 (Assumption 8).** Confirms core-PRD gate decision 3. **Approve the rebuild**, or keep `source_type` enforced at the app/Zod layer only until a natural table change?
-4. **Reconciliation runs synchronously per batch (Assumption 3)** and **absence never infers removal (Assumption 5).** Both are Phase-3-appropriate simplifications with roadmap upgrades. **Confirm** these are acceptable for now.
+1. **New-asset-from-automated-source → review queue, not silent create (Assumption 1)** — **RESOLVED: confirmed.** Automated no-match observations queue for human enrichment; no auto-create with a placeholder criticality. **Added requirement:** the review queue must be **sortable and filterable by attribute columns**, and support **multi-select bulk enrichment** — select many `new_asset` items and apply one criticality (+ business_impact) to all in a single audited action, so a queue of freshly-discovered devices drains efficiently. Reflected in §7 (`ReviewService.list(filter, sort, page)`, `bulkCreateNew`, `ReviewItem.attributes`) and §11.2/§11.4.
+2. **Field precedence policy (Assumption 2)** — **RESOLVED: confirmed.** Manual override wins → source `precedence` rank → recency; default ranks manual 100 / cloud 80 / scanner 50 / csv 40 / dhcp 20 accepted as the configurable defaults.
+3. **`sources.source_type` CHECK via table rebuild in 0002 (Assumption 8)** — **RESOLVED: approved.** The rebuild ships in `0002_ingestion.sql`; confirms core-PRD gate decision 3.
+4. **Synchronous per-batch reconciliation (Assumption 3) + no removal-by-absence (Assumption 5)** — **RESOLVED: accepted for now.** Async reconciliation and staleness/absence policies remain roadmap items.

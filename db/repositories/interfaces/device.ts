@@ -92,6 +92,17 @@ export interface IDeviceRepository {
   create(input: CreateDevice, ctx: AuditContext): Promise<Device>;
   getById(id: string): Promise<Device | null>;
   list(filter: DeviceFilter, page: PageRequest): Promise<Page<Device>>;
+  // Reconciliation match-key finders (PRD §6.1). Each returns every canonical
+  // device matching the key; >1 result signals ambiguity to the engine. The
+  // core schema indexes all four keys for exactly this use.
+  findByCloudInstanceId(cloudInstanceId: string): Promise<Device[]>;
+  findByHardwareSerial(hardwareSerial: string): Promise<Device[]>;
+  // Matches any device owning any of the given MACs (normalized internally).
+  findByMacAddresses(macAddresses: string[]): Promise<Device[]>;
+  findByHostnameDomain(
+    hostname: string,
+    domain: string | null,
+  ): Promise<Device[]>;
   update(id: string, patch: UpdateDevice, ctx: AuditContext): Promise<Device>;
   // Safeguard 1.2; writes a status_change audit entry atomically.
   setStatus(

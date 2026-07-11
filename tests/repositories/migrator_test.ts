@@ -4,23 +4,24 @@ import { openDatabase } from "@/db/repositories/turso/connection.ts";
 import { migrate, MigrationError } from "@/db/repositories/turso/migrator.ts";
 import { insertRow, validNetworkInterfaceRow, withTempDb } from "./helpers.ts";
 
-Deno.test("migrate applies 0001 to a fresh database and reruns are no-ops", async () => {
+Deno.test("migrate applies all migrations to a fresh database and reruns are no-ops", async () => {
   const dir = await Deno.makeTempDir({ prefix: "dragonfly-migrate-" });
   const dbPath = join(dir, "test.db");
+  const ALL = ["0001_initial.sql", "0002_ingestion.sql"];
   try {
     const first = await migrate(dbPath);
-    assertEquals(first.applied, ["0001_initial.sql"]);
+    assertEquals(first.applied, ALL);
     assertEquals(first.skipped, []);
 
     const second = await migrate(dbPath);
     assertEquals(second.applied, []);
-    assertEquals(second.skipped, ["0001_initial.sql"]);
+    assertEquals(second.skipped, ALL);
 
     const db = await openDatabase(dbPath);
     try {
       const stmt = await db.prepare("SELECT COUNT(*) AS n FROM _migrations");
       const row = await stmt.get();
-      assertEquals(row.n, 1);
+      assertEquals(row.n, ALL.length);
       // Spot-check that the schema actually exists.
       for (
         const table of [
@@ -35,6 +36,9 @@ Deno.test("migrate applies 0001 to a fresh database and reruns are no-ops", asyn
           "source_records",
           "field_provenance",
           "audit_log",
+          "ingestion_batches",
+          "ingestion_errors",
+          "review_queue",
         ]
       ) {
         const probe = await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`);

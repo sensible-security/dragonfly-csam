@@ -25,6 +25,7 @@
     "jsr:@std/media-types@^1.1.0": "1.1.0",
     "jsr:@std/net@^1.0.6": "1.0.6",
     "jsr:@std/path@1": "1.1.6",
+    "jsr:@std/path@^1.0.8": "1.1.6",
     "jsr:@std/path@^1.1.1": "1.1.6",
     "jsr:@std/path@^1.1.2": "1.1.6",
     "jsr:@std/path@^1.1.4": "1.1.6",
@@ -37,6 +38,7 @@
     "npm:@preact/signals@^2.9.0": "2.9.3_preact@10.29.7__preact-render-to-string@6.7.0_preact-render-to-string@6.7.0__preact@10.29.7",
     "npm:@prefresh/vite@^2.4.8": "2.4.12_preact@10.29.7__preact-render-to-string@6.7.0_vite@7.3.6_preact-render-to-string@6.7.0__preact@10.29.7",
     "npm:@remix-run/node-fetch-server@0.12": "0.12.0",
+    "npm:@tursodatabase/database@0.6.1": "0.6.1",
     "npm:@types/babel__core@^7.20.5": "7.20.5",
     "npm:esbuild-wasm@~0.25.11": "0.25.12",
     "npm:esbuild@0.25.7": "0.25.7",
@@ -951,6 +953,41 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@tursodatabase/database-common@0.6.1": {
+      "integrity": "sha512-fkmkhgSUDg3MXkcziTG9Ime3AY5+YvvDN7VvUDEMNV7MP+XgwE/i5tU6eQP1EKa/zDkdSYPq8gPcmROmKmKL8Q=="
+    },
+    "@tursodatabase/database-darwin-arm64@0.6.1": {
+      "integrity": "sha512-2/nlqulI/kWlrh7vHMwF5fkuavGRWB83SIhzHZmoHSQovq0a28Z4+WAHerjh9yNs7DTj70U9PIsvAtRdh77l7g==",
+      "os": ["darwin"],
+      "cpu": ["arm64"]
+    },
+    "@tursodatabase/database-linux-arm64-gnu@0.6.1": {
+      "integrity": "sha512-ixooF2xyxV84GYIYPLI5D9VEp+cX3WPBmXRyoCGw7+l9G66eOp8QppGF0dKFYhtp/AJ8YmOp+lemqBoCue9N8Q==",
+      "os": ["linux"],
+      "cpu": ["arm64"]
+    },
+    "@tursodatabase/database-linux-x64-gnu@0.6.1": {
+      "integrity": "sha512-cNZ3FS8XBn4X8zHSzd31nvEeBbR4hCDBGs2P3ViND1Egu5oDZ822a+hWxNxMgMPgUJf/aGBEAk5p+j11fAC/QQ==",
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "@tursodatabase/database-win32-x64-msvc@0.6.1": {
+      "integrity": "sha512-3CASiW3BbeNT4qryxPKKZECGxaAtfUeM/Bjx1NWIxShCLLtRpnaEUt7WLOT2hz+sqU322H6fmMuaN9sYrcwBxw==",
+      "os": ["win32"],
+      "cpu": ["x64"]
+    },
+    "@tursodatabase/database@0.6.1": {
+      "integrity": "sha512-qg6LO1XHA9kc2s97crg0/nHiKFk3xTzylRuZPYggO0vA4hx2rp8fk0Je2vFGOkfVv+ZmzsXOIb+DBHmdrG+72A==",
+      "dependencies": [
+        "@tursodatabase/database-common"
+      ],
+      "optionalDependencies": [
+        "@tursodatabase/database-darwin-arm64",
+        "@tursodatabase/database-linux-arm64-gnu",
+        "@tursodatabase/database-linux-x64-gnu",
+        "@tursodatabase/database-win32-x64-msvc"
+      ]
+    },
     "@types/babel__core@7.20.5": {
       "integrity": "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==",
       "dependencies": [
@@ -1280,7 +1317,9 @@
       "jsr:@fresh/core@^2.3.3",
       "jsr:@fresh/plugin-vite@^1.1.2",
       "jsr:@std/assert@^1.0.13",
+      "jsr:@std/path@^1.0.8",
       "npm:@preact/signals@^2.9.0",
+      "npm:@tursodatabase/database@0.6.1",
       "npm:@types/babel__core@^7.20.5",
       "npm:preact@^10.29.1",
       "npm:vite@^7.1.3"

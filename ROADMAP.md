@@ -1,6 +1,6 @@
 # ROADMAP — Dragonfly CSAM
 
-**Status:** DRAFT — /spec deliverable for review
+**Status:** APPROVED — Phase 6 gate approved 2026-07-12
 **Source prompt:** DEVELOPMENT_PLAN.md, Prompt 6.2
 **Compliance scope:** extends CIS Controls v8.1 Control 1 (Safeguard 1.4) and Control 2 (Safeguards 2.5–2.7) to completion, then Controls 3, 4, 5/6, 7, 15 · NIST CSF 2.0 ID.AM (built) → PR/DE/GV (design-for)
 **Authority:** AGENTS.md §9 (Roadmap Awareness — the schema/architecture hooks this backlog cashes in), §4.1 (layering), §4.2 (connector pipeline — every source item is *config of the existing abstraction*, not new pipeline code)

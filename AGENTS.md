@@ -163,7 +163,7 @@ All four checks (`start` boot, `build`, `test`, `check`) must pass before `/revi
 - Never weaken the Repository Pattern, connector pipeline, or taxonomy enums for expedience.
 - Ask before: adding dependencies, altering migration files that already shipped, changing the reconciliation match-key order, or modifying auth/audit code.
 - CSV/connector payload values are untrusted: validate types, lengths, and enums; reject or quarantine malformed rows with a per-row error report — never partially guess.
-- The Dragonfly database is itself Sensitive Data (CIS Data class). All routes require authentication except health checks; secure session handling; no PII in logs.
+- The Dragonfly database is itself Sensitive Data (CIS Data class). All routes require authentication except the health check, the login page itself, and static assets. Sessions authenticate humans (UI + full API per role); API keys authenticate connectors (ingest, plus read-only GET/HEAD on the JSON read APIs) and never grant mutation, admin, or UI access. Secure session handling; no PII in logs.
 
 ---
 

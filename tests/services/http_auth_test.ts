@@ -183,14 +183,15 @@ Deno.test("credential channels are non-interchangeable (PRD Assumption 11)", asy
       "api_key_required",
     );
 
-    // An API key does NOT authenticate anything else.
+    // An API key does NOT authenticate mutations, even on read-API paths
+    // (read access itself is covered by the 5.3 tests below).
     await expectBlocked(
       await guardRequest(
-        request("GET", "/api/devices", { "x-api-key": h.apiKeySecret }),
+        request("POST", "/api/devices", { "x-api-key": h.apiKeySecret }),
         h.auth,
       ),
-      401,
-      "unauthenticated",
+      403,
+      "api_key_forbidden",
     );
 
     // Revoked key stops working immediately.
@@ -203,6 +204,92 @@ Deno.test("credential channels are non-interchangeable (PRD Assumption 11)", asy
         }),
         h.auth,
       ),
+      401,
+      "invalid_api_key",
+    );
+  });
+});
+
+Deno.test("API keys read the inventory APIs but nothing else (5.3 spec)", async () => {
+  await withTempDb(async (db) => {
+    const h = await buildHarness(db);
+    const key = { "x-api-key": h.apiKeySecret };
+
+    // GET/HEAD on every allowlisted read surface resolves a connector
+    // identity, including detail subpaths.
+    for (
+      const path of [
+        "/api/devices",
+        "/api/devices/some-id",
+        "/api/software",
+        "/api/source-records",
+        "/api/audit-log",
+        "/api/review-queue",
+      ]
+    ) {
+      const result = await guardRequest(request("GET", path, key), h.auth);
+      assert(result.kind === "ok", `expected key read to pass for ${path}`);
+      assertEquals(result.identity?.kind, "connector");
+      assert(
+        result.identity?.kind === "connector" &&
+          result.identity.sourceName === "scanner-1",
+      );
+    }
+    const head = await guardRequest(
+      request("HEAD", "/api/devices", key),
+      h.auth,
+    );
+    assert(head.kind === "ok");
+
+    // Refused without resolution everywhere else: mutations, admin, UI
+    // routes, non-allowlisted API reads, and segment-prefix confusion.
+    for (
+      const [method, path] of [
+        ["POST", "/api/devices"],
+        ["PATCH", "/api/devices/some-id/status"],
+        ["GET", "/api/admin/users"],
+        ["POST", "/api/admin/api-keys"],
+        ["GET", "/devices"],
+        ["GET", "/"],
+        ["POST", "/logout"],
+        ["GET", "/api/ingestion-batches/x/errors"],
+        ["GET", "/api/devicesx"],
+      ] as const
+    ) {
+      await expectBlocked(
+        await guardRequest(request(method, path, key), h.auth),
+        403,
+        "api_key_forbidden",
+      );
+    }
+
+    // The refusal is channel-level, so it applies even when a valid session
+    // cookie rides along (spec Assumption 3: the key channel wins).
+    await expectBlocked(
+      await guardRequest(
+        request("POST", "/api/devices", { ...key, cookie: h.cookies.admin }),
+        h.auth,
+      ),
+      403,
+      "api_key_forbidden",
+    );
+
+    // Invalid key on an allowed read path: 401, same as ingest.
+    await expectBlocked(
+      await guardRequest(
+        request("GET", "/api/devices", { "x-api-key": "dfk_not_a_real_key" }),
+        h.auth,
+      ),
+      401,
+      "invalid_api_key",
+    );
+
+    // Revoked key stops reading immediately.
+    const created =
+      (await h.auth.listApiKeys({ limit: 1, offset: 0 })).items[0];
+    await h.auth.revokeApiKey(created.id, CTX);
+    await expectBlocked(
+      await guardRequest(request("GET", "/api/devices", key), h.auth),
       401,
       "invalid_api_key",
     );

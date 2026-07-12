@@ -22,7 +22,7 @@ Decisions the source prompt leaves open. Each is proceeded with as written; corr
 8. **User and API-key management is API-only this phase** (`/api/admin/*`, admin role). A management UI is roadmap (it would be a Phase 4-style build slice, and Prompt 5.1 doesn't ask for it). Users are **disabled, never deleted** — audit rows reference actor identities forever.
 9. **Login/logout are audited as `entity_type = 'session'`** with the existing `create`/`delete` audit actions — no audit-action enum change, no `audit_log` table rebuild. The audit `entity_id` is the session row id, never the token. **Failed logins are not persisted** and usernames are never logged (no PII in logs, no log-flooding channel); login rate limiting is listed for /review (5.2) consideration as a roadmap item.
 10. **CSRF defense is SameSite=Lax plus an Origin check** on every mutating (non-GET/HEAD/OPTIONS) session-authenticated request: if an `Origin` header is present and does not match the request host, reject 403. No synchronizer-token machinery — islands do same-origin `fetch`, forms are same-origin posts, and API-key requests (no cookies) are exempt.
-11. **Ingest endpoints accept API keys only; everything else accepts sessions only.** A session cookie on `/api/ingest/*` does not authenticate the request, and an API key on any other route does not either. This keeps the two credential channels non-interchangeable (a leaked scanner key cannot read inventory).
+11. **Ingest endpoints accept API keys only; sessions never authenticate ingest.** *(Amended by [PRD-api-read-access.md](./PRD-api-read-access.md), Prompt 5.3:)* an API key additionally authenticates **GET/HEAD on the JSON read APIs** (`/api/devices`, `/api/software`, `/api/source-records`, `/api/audit-log`, `/api/review-queue`), so SIEM/GRC tooling has a programmatic read credential (AGENTS.md §4.3). The channels stay non-interchangeable everywhere else: a key grants no mutation, admin, or UI access anywhere (403 `api_key_forbidden`), and a session cookie is still not a credential for ingest. Note the original parenthetical ("a leaked scanner key cannot read inventory") no longer holds — a leaked key is now a read-scope credential, mitigated by revocation and `last_used_at`.
 12. **`/api/health` remains the only unauthenticated route** besides `/login` (the door itself) and static assets (`staticFiles()` runs before auth, as it already does).
 
 ---
@@ -38,7 +38,7 @@ Every request to Dragonfly resolves to an authenticated identity before any hand
 - Entra ID SSO / OIDC (roadmap #14) — designed-for via `IdentityProvider` (§5), not built.
 - User/API-key management **UI**, self-service password change/reset, MFA, login rate limiting, account lockout → roadmap / 5.2 review findings.
 - Per-entity authorization, row-level security, tenant separation.
-- API keys for general (non-ingest) API access by third-party tooling — roadmap; the SIEM/GRC read path stays session-gated for now.
+- ~~API keys for general (non-ingest) API access by third-party tooling — roadmap; the SIEM/GRC read path stays session-gated for now.~~ *Delivered in Prompt 5.3 — see [PRD-api-read-access.md](./PRD-api-read-access.md).*
 
 ---
 
@@ -58,12 +58,14 @@ Set on `ctx.state.identity` by the auth middleware; `undefined` only on the open
 |---|---|---|---|---|---|
 | `/api/health` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `/login` (GET+POST), static assets | ✓ (redirects home if signed in) | ✓ | ✓ | — | ✓ |
-| `/logout` (POST) | ✓ | ✓ | ✓ | — | → /login |
-| UI pages (GET) | ✓ | ✓ | ✓ | — | 303 → /login?next= |
-| Read APIs (GET/HEAD `/api/**`) | ✓ | ✓ | ✓ | — | 401 |
-| Mutating APIs (POST/PATCH/PUT/DELETE `/api/**` except below) | ✓ | ✓ | 403 | — | 401 |
-| `/api/admin/**` (users, api-keys) | ✓ | 403 | 403 | — | 401 |
+| `/logout` (POST) | ✓ | ✓ | ✓ | 403 | → /login |
+| UI pages (GET) | ✓ | ✓ | ✓ | 403 | 303 → /login?next= |
+| Read APIs (GET/HEAD `/api/**`) | ✓ | ✓ | ✓ | ✓ on the 5.3 allowlist (devices, software, source-records, audit-log, review-queue); 403 elsewhere | 401 |
+| Mutating APIs (POST/PATCH/PUT/DELETE `/api/**` except below) | ✓ | ✓ | 403 | 403 | 401 |
+| `/api/admin/**` (users, api-keys) | ✓ | 403 | 403 | 403 | 401 |
 | `POST /api/ingest/*` | — (401: key required) | — | — | ✓ | 401 |
+
+*(Connector-column 403s are `api_key_forbidden`, issued without resolving the key — [PRD-api-read-access.md](./PRD-api-read-access.md) §2.)*
 
 - `read_only` browses every page and reads every API; any mutating method answers `403 { error: { code: "forbidden" } }`.
 - Sessions on `/api/ingest/*` and API keys anywhere else are **not** credentials (Assumption 11) → 401.

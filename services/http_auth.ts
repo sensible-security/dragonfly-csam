@@ -1,7 +1,8 @@
-// Request guard (auth PRD §3 matrix, §6): one pure decision function the
-// main.ts middleware calls on every request, unit-testable without Fresh.
-// Order: open routes → credential resolution (cookie everywhere; API key only
-// under /api/ingest/) → RBAC → CSRF origin check. Replaces the Phase 3
+// Request guard (auth PRD §3 matrix, §6; read-access PRD §2): one pure
+// decision function the main.ts middleware calls on every request,
+// unit-testable without Fresh. Order: open routes → credential resolution
+// (API key under /api/ingest/ and for GET/HEAD on the read-API allowlist;
+// cookie everywhere else) → RBAC → CSRF origin check. Replaces the Phase 3
 // ingest_auth stub.
 import type { AuthIdentity } from "../db/repositories/interfaces/mod.ts";
 import type { AuthService } from "./auth_service.ts";
@@ -66,6 +67,23 @@ export function apiKeyFrom(headers: Headers): string | null {
 }
 
 const MUTATING_EXEMPT_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+// The JSON read surfaces an API key may GET/HEAD (read-access PRD §2 —
+// SIEM/GRC tooling, AGENTS.md §4.3). Everything else on the key channel is
+// ingest-only.
+const API_KEY_READ_PREFIXES = [
+  "/api/devices",
+  "/api/software",
+  "/api/source-records",
+  "/api/audit-log",
+  "/api/review-queue",
+];
+
+function apiKeyReadablePath(path: string): boolean {
+  return API_KEY_READ_PREFIXES.some((prefix) =>
+    path === prefix || path.startsWith(prefix + "/")
+  );
+}
 
 function isApiPath(path: string): boolean {
   return path === "/api" || path.startsWith("/api/");
@@ -135,6 +153,39 @@ export async function guardRequest(
       };
     }
     const identity = await auth.resolveApiKey(key);
+    if (!identity) {
+      return {
+        kind: "response",
+        response: jsonError(
+          401,
+          "invalid_api_key",
+          "missing or invalid API key",
+        ),
+      };
+    }
+    return { kind: "ok", identity };
+  }
+
+  // API-key channel outside ingest (read-access PRD §2): a connector key
+  // authenticates GET/HEAD on the read-API allowlist. A key presented
+  // anywhere else is refused outright — before resolution, so the response
+  // never confirms whether the key is valid — instead of silently falling
+  // through to the session channel. The key channel wins even when a session
+  // cookie rides along (read-access PRD Assumption 3).
+  const presentedKey = apiKeyFrom(req.headers);
+  if (presentedKey !== null) {
+    const isRead = req.method === "GET" || req.method === "HEAD";
+    if (!isRead || !apiKeyReadablePath(path)) {
+      return {
+        kind: "response",
+        response: jsonError(
+          403,
+          "api_key_forbidden",
+          "API keys are limited to ingest and read-only inventory API access",
+        ),
+      };
+    }
+    const identity = await auth.resolveApiKey(presentedKey);
     if (!identity) {
       return {
         kind: "response",

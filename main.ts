@@ -24,10 +24,10 @@ app.use((ctx) => {
   return ctx.next();
 });
 
-// Authentication gate (auth PRD §3/§6): every request past staticFiles()
-// resolves to an identity — session cookie everywhere, API key on
-// /api/ingest/ — or is answered 401/303 here. Handlers never re-derive
-// identity from headers.
+// Authentication gate (auth PRD §3/§6, read-access PRD §2): every request
+// past staticFiles() resolves to an identity — session cookie for UI + API,
+// API key on /api/ingest/ and for GET/HEAD on the read-API allowlist — or is
+// answered 401/403/303 here. Handlers never re-derive identity from headers.
 app.use(async (ctx) => {
   const result = await guardRequest(ctx.req, container.services.auth);
   if (result.kind === "response") return result.response;

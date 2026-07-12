@@ -1,0 +1,48 @@
+# Dragonfly CSAM — single-container deployment (DEVELOPMENT_PLAN Prompt 6.1).
+# The app is one Deno process with an embedded Turso database file. State lives
+# entirely in the `dragonfly-data` named volume mounted at /app/data, so the
+# container itself stays disposable. See DEPLOYMENT.md for backup/restore.
+services:
+  app:
+    build: .
+    image: dragonfly-csam
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Embedded DB file path inside the mounted volume (matches the Dockerfile
+      # default; set explicitly so it survives base-image changes).
+      DRAGONFLY_DB_PATH: /app/data/dragonfly.db
+      # First-boot admin seed: only creates an account when the users table is
+      # empty. Supply these via a .env file (see DEPLOYMENT.md) — never commit
+      # real credentials. Password must be at least 12 characters.
+      DRAGONFLY_ADMIN_USERNAME: ${DRAGONFLY_ADMIN_USERNAME:?set DRAGONFLY_ADMIN_USERNAME in .env}
+      DRAGONFLY_ADMIN_PASSWORD: ${DRAGONFLY_ADMIN_PASSWORD:?set DRAGONFLY_ADMIN_PASSWORD in .env}
+      # Set to 1 when a TLS-terminating proxy sits in front of this plain-HTTP
+      # container so session cookies carry the Secure attribute.
+      DRAGONFLY_COOKIE_SECURE: ${DRAGONFLY_COOKIE_SECURE:-0}
+      # Optional: session lifetime in hours (defaults to 8 when unset/invalid).
+      DRAGONFLY_SESSION_TTL_HOURS: ${DRAGONFLY_SESSION_TTL_HOURS:-8}
+    volumes:
+      - dragonfly-data:/app/data
+    # The base image ships no curl; probe the open health route with the deno
+    # binary that is already present. /api/health verifies DB connectivity
+    # through the repository layer and needs no authentication. `deno eval` runs
+    # with full permissions in Deno 2.x (no sandbox flag accepted); 127.0.0.1
+    # forces IPv4 to match the server's --host 0.0.0.0 bind.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "const r = await fetch('http://127.0.0.1:8000/api/health'); if (!r.ok) Deno.exit(1);",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  dragonfly-data:
+    driver: local

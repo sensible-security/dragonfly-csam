@@ -3,7 +3,7 @@
   "tasks": {
     "start": "vite",
     "build": "vite build",
-    "serve": "deno serve -A _fresh/server.js",
+    "serve": "deno serve --allow-net --allow-read --allow-write --allow-ffi --allow-env --host 0.0.0.0 --port 8000 _fresh/server.js",
     "test": "deno test -A tests/",
     "check": "deno fmt --check . && deno lint . && deno check",
     "db:migrate": "deno run --allow-read --allow-write --allow-ffi --allow-env db/repositories/turso/migrate.ts",
@@ -26,7 +26,8 @@
       "AGENTS.md",
       "CLAUDE.md",
       "GEMINI.md",
-      "README.md"
+      "README.md",
+      "DEPLOYMENT.md"
     ]
   },
   "exclude": [

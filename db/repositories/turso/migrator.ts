@@ -1,9 +1,12 @@
-import { dirname, fromFileUrl, join } from "@std/path";
+import { dirname, join } from "@std/path";
 import { openDatabase } from "./connection.ts";
 
-const DEFAULT_MIGRATIONS_DIR = fromFileUrl(
-  new URL("../../migrations/", import.meta.url),
-);
+// Anchored on the working directory, not import.meta.url: the SSR build bundles
+// this module into _fresh/server/, which would relocate an import.meta-relative
+// path to a non-existent `<root>/migrations`. Every entry point (dev server,
+// `deno serve` in the container's /app WORKDIR, the db:migrate CLI, and the test
+// suite) runs from the project root, where db/migrations/ lives.
+const DEFAULT_MIGRATIONS_DIR = join(Deno.cwd(), "db", "migrations");
 
 export class MigrationError extends Error {
   constructor(readonly filename: string, cause: unknown) {

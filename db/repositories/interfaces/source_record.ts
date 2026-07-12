@@ -34,6 +34,12 @@ export interface SourceRecord {
   normalizedPayload: string;
   firstSeen: string;
   lastSeen: string;
+  // Reconciliation outcome stamped by setReconciliationOutcome (routes PRD
+  // §4.3: staging-record detail exposes status + matched entity).
+  reconciliationStatus: ReconciliationStatus;
+  matchedEntityType: ProvenanceEntityType | null;
+  matchedEntityId: string | null;
+  reconciledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +87,13 @@ export interface ISourceRecordRepository {
   // Staging-order feed for reconciliation: records from a source still awaiting
   // an outcome (reconciliation_status = 'pending').
   listPendingBySource(sourceId: string): Promise<SourceRecord[]>;
+  // Staging rows reconciled onto a canonical asset (matched_entity_* stamped by
+  // setReconciliationOutcome) — the asset-detail provenance surface (routes PRD
+  // §4.1). Ordered by first_seen.
+  listByMatchedEntity(
+    entityType: ProvenanceEntityType,
+    entityId: string,
+  ): Promise<SourceRecord[]>;
   setFieldProvenance(
     entityType: ProvenanceEntityType,
     entityId: string,

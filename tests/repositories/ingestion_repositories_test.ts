@@ -394,3 +394,61 @@ Deno.test("review queue: enqueue, filter, sort, paginate, and audited resolve", 
     );
   });
 });
+
+Deno.test("findBySourceRecord returns the queue item for a staged record", async () => {
+  await withTempDb(async (db) => {
+    const sourceRecords = new TursoSourceRecordRepository(db);
+    const reviewQueue = new TursoReviewQueueRepository(db);
+    const source = await sourceRecords.registerSource(
+      { sourceType: "scanner_json", name: "nmap-x" },
+      CTX,
+    );
+    const record = await sourceRecords.upsertObservation({
+      sourceId: source.id,
+      externalId: "amb-1",
+      entityKind: "device",
+      rawPayload: "{}",
+      normalizedPayload: "{}",
+      observedAt: "2026-07-01T00:00:00.000Z",
+    }, CTX);
+
+    assertEquals(await reviewQueue.findBySourceRecord(record.id), null);
+
+    const item = await reviewQueue.enqueue({
+      sourceRecordId: record.id,
+      entityKind: "device",
+      reason: "ambiguous_match",
+      confidence: "ambiguous",
+      candidates: [],
+      attributes: { hostname: "web-01" },
+    }, CTX);
+
+    const found = await reviewQueue.findBySourceRecord(record.id);
+    assertEquals(found?.id, item.id);
+  });
+});
+
+Deno.test("listRecent returns batches newest-first with a limit", async () => {
+  await withTempDb(async (db) => {
+    const sourceRecords = new TursoSourceRecordRepository(db);
+    const batches = new TursoIngestionBatchRepository(db);
+    const source = await sourceRecords.registerSource(
+      { sourceType: "csv_import", name: "csv-x" },
+      CTX,
+    );
+
+    const opened: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const batch = await batches.open(
+        { sourceId: source.id, connectorId: "csv-import" },
+        CTX,
+      );
+      opened.push(batch.id);
+    }
+
+    const recent = await batches.listRecent(2);
+    assertEquals(recent.length, 2);
+    assertEquals(recent[0].id, opened[2]);
+    assertEquals(recent[1].id, opened[1]);
+  });
+});

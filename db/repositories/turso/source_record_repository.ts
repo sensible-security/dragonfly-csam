@@ -42,6 +42,10 @@ interface RecordRow {
   normalized_payload: string;
   first_seen: string;
   last_seen: string;
+  reconciliation_status: ReconciliationStatus;
+  matched_entity_type: ProvenanceEntityType | null;
+  matched_entity_id: string | null;
+  reconciled_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,6 +80,10 @@ function toRecord(row: RecordRow): SourceRecord {
     normalizedPayload: row.normalized_payload,
     firstSeen: row.first_seen,
     lastSeen: row.last_seen,
+    reconciliationStatus: row.reconciliation_status,
+    matchedEntityType: row.matched_entity_type,
+    matchedEntityId: row.matched_entity_id,
+    reconciledAt: row.reconciled_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -177,6 +185,7 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
             rawPayload: input.rawPayload,
             normalizedPayload: input.normalizedPayload,
             lastSeen: input.observedAt,
+            reconciliationStatus: "pending",
             updatedAt: ts,
           };
           // Re-observation re-enters reconciliation: reset the outcome to
@@ -215,6 +224,10 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
           normalizedPayload: input.normalizedPayload,
           firstSeen: input.observedAt,
           lastSeen: input.observedAt,
+          reconciliationStatus: "pending", // schema default, mirrored here
+          matchedEntityType: null,
+          matchedEntityId: null,
+          reconciledAt: null,
           createdAt: ts,
           updatedAt: ts,
         };
@@ -310,6 +323,19 @@ export class TursoSourceRecordRepository implements ISourceRecordRepository {
        ORDER BY first_seen, id`,
     );
     const rows = await stmt.all(sourceId) as RecordRow[];
+    return rows.map(toRecord);
+  }
+
+  async listByMatchedEntity(
+    entityType: ProvenanceEntityType,
+    entityId: string,
+  ): Promise<SourceRecord[]> {
+    const stmt = await this.db.prepare(
+      `SELECT * FROM source_records
+       WHERE matched_entity_type = ? AND matched_entity_id = ?
+       ORDER BY first_seen, id`,
+    );
+    const rows = await stmt.all(entityType, entityId) as RecordRow[];
     return rows.map(toRecord);
   }
 

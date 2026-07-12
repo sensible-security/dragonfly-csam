@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { href: "/devices", icon: "devices", label: "Devices" },
   { href: "/software", icon: "apps", label: "Software" },
   { href: "/ingestion", icon: "cloud_upload", label: "Ingestion" },
+  { href: "/review-queue", icon: "rule", label: "Review Queue" },
   { href: "/audit-log", icon: "receipt_long", label: "Audit Log" },
 ] as const;
 

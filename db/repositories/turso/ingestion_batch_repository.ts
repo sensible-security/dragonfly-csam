@@ -201,6 +201,17 @@ export class TursoIngestionBatchRepository
     return row ? toBatch(row) : null;
   }
 
+  async listRecent(limit: number): Promise<IngestionBatch[]> {
+    // rowid tiebreak keeps same-millisecond opens in insertion order.
+    const stmt = await this.db.prepare(
+      `SELECT * FROM ingestion_batches
+       ORDER BY started_at DESC, rowid DESC
+       LIMIT ?`,
+    );
+    const rows = await stmt.all(limit) as BatchRow[];
+    return rows.map(toBatch);
+  }
+
   async recordError(input: CreateIngestionError): Promise<IngestionError> {
     const error: IngestionError = {
       id: crypto.randomUUID(),

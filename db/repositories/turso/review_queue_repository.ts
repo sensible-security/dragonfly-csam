@@ -136,6 +136,21 @@ export class TursoReviewQueueRepository implements IReviewQueueRepository {
     return row ? toItem(row) : null;
   }
 
+  async findBySourceRecord(
+    sourceRecordId: string,
+  ): Promise<ReviewQueueItem | null> {
+    const stmt = await this.db.prepare(
+      `SELECT rq.*, sr.source_id AS source_id
+       FROM review_queue rq
+       JOIN source_records sr ON sr.id = rq.source_record_id
+       WHERE rq.source_record_id = ?
+       ORDER BY rq.created_at DESC
+       LIMIT 1`,
+    );
+    const row = await stmt.get(sourceRecordId) as QueueRow | undefined;
+    return row ? toItem(row) : null;
+  }
+
   async list(
     filter: ReviewQueueFilter,
     sort: ReviewQueueSort,

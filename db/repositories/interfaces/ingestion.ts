@@ -135,6 +135,8 @@ export interface IIngestionBatchRepository {
     ctx: AuditContext,
   ): Promise<IngestionBatch>;
   getById(id: string): Promise<IngestionBatch | null>;
+  // Newest-first batch feed for the ingestion page (routes PRD §5.7).
+  listRecent(limit: number): Promise<IngestionBatch[]>;
   recordError(input: CreateIngestionError): Promise<IngestionError>;
   listErrors(batchId: string): Promise<IngestionError[]>;
 }
@@ -199,6 +201,10 @@ export interface IReviewQueueRepository {
     ctx: AuditContext,
   ): Promise<ReviewQueueItem>;
   getById(id: string): Promise<ReviewQueueItem | null>;
+  // The queue item raised for a staged record, if any (a record has at most
+  // one pending item). Used to answer "queued" creates with the item id
+  // (routes PRD §4.1 CreateAssetResult).
+  findBySourceRecord(sourceRecordId: string): Promise<ReviewQueueItem | null>;
   list(
     filter: ReviewQueueFilter,
     sort: ReviewQueueSort,

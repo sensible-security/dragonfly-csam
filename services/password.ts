@@ -15,6 +15,10 @@ export interface PasswordHasher {
 // OWASP 2024 baseline for PBKDF2-HMAC-SHA256.
 export const DEFAULT_PBKDF2_ITERATIONS = 210_000;
 
+// Minimum length for a user-supplied password, enforced at every creation
+// path (admin API schema and env bootstrap) so the two cannot drift.
+export const MIN_PASSWORD_LENGTH = 12;
+
 const SALT_BYTES = 16;
 const KEY_BITS = 256;
 

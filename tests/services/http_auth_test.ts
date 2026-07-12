@@ -276,6 +276,43 @@ Deno.test("mutating session requests reject cross-origin Origin headers (CSRF)",
   });
 });
 
+Deno.test("POST /login is CSRF-guarded (login-CSRF defense)", async () => {
+  await withTempDb(async (db) => {
+    const h = await buildHarness(db);
+
+    // Cross-origin login POST is rejected before any credential is minted.
+    await expectBlocked(
+      await guardRequest(
+        request("POST", "/login", { origin: "https://evil.example" }),
+        h.auth,
+      ),
+      403,
+      "csrf_rejected",
+    );
+
+    // Same-origin and Origin-less (curl) login posts still pass the guard.
+    const same = await guardRequest(
+      request("POST", "/login", { origin: "http://dragonfly.local" }),
+      h.auth,
+    );
+    assert(same.kind === "ok");
+    const noOrigin = await guardRequest(request("POST", "/login"), h.auth);
+    assert(noOrigin.kind === "ok");
+  });
+});
+
+Deno.test("GET /login resolves an existing session so the page can redirect home", async () => {
+  await withTempDb(async (db) => {
+    const h = await buildHarness(db);
+    const result = await guardRequest(
+      request("GET", "/login", { cookie: h.cookies.admin }),
+      h.auth,
+    );
+    assert(result.kind === "ok");
+    assertEquals(result.identity?.kind, "user");
+  });
+});
+
 Deno.test("setSessionCookie emits hardened attributes", () => {
   const secure = setSessionCookie("tok123", 3_600, true);
   assert(secure.startsWith(`${SESSION_COOKIE}=tok123;`));

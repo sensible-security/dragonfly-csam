@@ -8,6 +8,7 @@ import {
   cookieSecure,
   sessionTokenFrom,
 } from "../services/http_auth.ts";
+import { sourceAddressFrom } from "./(_shared)/context.ts";
 
 export interface HandleLogoutArgs {
   request: Request;
@@ -36,6 +37,6 @@ export const handler = define.handlers({
     handleLogout({
       request: ctx.req,
       auth: ctx.state.services.auth,
-      sourceAddress: ctx.req.headers.get("x-forwarded-for") ?? undefined,
+      sourceAddress: sourceAddressFrom(ctx.req),
     }),
 });

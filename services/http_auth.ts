@@ -71,6 +71,27 @@ function isApiPath(path: string): boolean {
   return path === "/api" || path.startsWith("/api/");
 }
 
+// CSRF (PRD Assumption 10): SameSite=Lax plus an Origin check on mutations. A
+// present Origin whose host differs from ours is a cross-site request; absent
+// Origin (curl, some same-site form posts) is allowed. A literal "Origin:
+// null" (sandboxed iframe, data: URL) fails to parse to our host and is
+// rejected like any other foreign origin.
+function crossOrigin(req: Request, url: URL): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  let originHost: string | null = null;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    originHost = null;
+  }
+  return originHost !== url.host;
+}
+
+function csrfRejected(): Response {
+  return jsonError(403, "csrf_rejected", "cross-origin request rejected");
+}
+
 export async function guardRequest(
   req: Request,
   auth: AuthService,
@@ -78,9 +99,26 @@ export async function guardRequest(
   const url = new URL(req.url);
   const path = url.pathname;
 
-  // Open routes (PRD Assumption 12): the health probe and the door itself.
-  // Static assets are served by staticFiles() before this guard runs.
-  if (path === "/api/health" || path === "/login") return { kind: "ok" };
+  // Open route (PRD Assumption 12): the health probe carries no identity and
+  // no CSRF surface. Static assets are served by staticFiles() before this
+  // guard runs.
+  if (path === "/api/health") return { kind: "ok" };
+
+  // The login page is open, but POST /login mints a session cookie, so it
+  // gets the same cross-origin CSRF guard as any other mutation — otherwise an
+  // attacker could log a victim's browser into an account of the attacker's
+  // choosing (login CSRF). We also resolve any existing session so the page
+  // can bounce an already-signed-in user home (login.tsx).
+  if (path === "/login") {
+    if (!MUTATING_EXEMPT_METHODS.has(req.method) && crossOrigin(req, url)) {
+      return { kind: "response", response: csrfRejected() };
+    }
+    const openToken = sessionTokenFrom(req.headers);
+    const openIdentity = openToken
+      ? await auth.resolveSession(openToken)
+      : null;
+    return { kind: "ok", identity: openIdentity ?? undefined };
+  }
 
   // Ingest: API-key channel only — a session cookie is not a credential here
   // and a key is not a credential anywhere else (PRD Assumption 11).
@@ -165,30 +203,8 @@ export async function guardRequest(
       return forbidden();
     }
 
-    // CSRF (PRD Assumption 10): SameSite=Lax plus an Origin check on
-    // mutations. Absent Origin (curl, same-site form posts) is allowed.
-    if (mutating) {
-      // A literal "Origin: null" (sandboxed iframe, data: URL) parses to no
-      // host below and is rejected like any other foreign origin.
-      const origin = req.headers.get("origin");
-      if (origin) {
-        let originHost: string | null = null;
-        try {
-          originHost = new URL(origin).host;
-        } catch {
-          originHost = null;
-        }
-        if (originHost !== url.host) {
-          return {
-            kind: "response",
-            response: jsonError(
-              403,
-              "csrf_rejected",
-              "cross-origin request rejected",
-            ),
-          };
-        }
-      }
+    if (mutating && crossOrigin(req, url)) {
+      return { kind: "response", response: csrfRejected() };
     }
   }
 

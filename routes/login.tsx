@@ -7,6 +7,7 @@ import { z } from "zod";
 import { define } from "../utils.ts";
 import type { AuthService } from "../services/auth_service.ts";
 import { cookieSecure, setSessionCookie } from "../services/http_auth.ts";
+import { sourceAddressFrom } from "./(_shared)/context.ts";
 
 const loginSchema = z.object({
   username: z.string().min(1).max(128),
@@ -14,9 +15,17 @@ const loginSchema = z.object({
   next: z.string().max(2048).optional(),
 });
 
-// Open-redirect guard: same-site paths only.
+// Open-redirect guard: same-site absolute paths only.
 export function safeNext(next: string | undefined): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  if (!next || !next.startsWith("/")) return "/";
+  // Reject protocol-relative ("//host") and backslash forms ("/\host") that
+  // browsers normalize into an off-site authority.
+  if (next[1] === "/" || next[1] === "\\") return "/";
+  // Control chars (tab/newline/CR) are stripped by browsers and could re-form
+  // an authority after this check, so refuse them outright.
+  for (let i = 0; i < next.length; i++) {
+    if (next.charCodeAt(i) < 0x20) return "/";
+  }
   return next;
 }
 
@@ -28,13 +37,6 @@ export interface HandleLoginArgs {
 
 // Exported for direct unit testing without booting the Fresh app.
 export async function handleLogin(args: HandleLoginArgs): Promise<Response> {
-  const form = await args.request.formData();
-  const parsed = loginSchema.safeParse({
-    username: form.get("username") ?? "",
-    password: form.get("password") ?? "",
-    next: form.get("next")?.toString() || undefined,
-  });
-  const url = new URL(args.request.url);
   const retry = (next?: string) => {
     const params = new URLSearchParams({ error: "1" });
     if (next) params.set("next", next);
@@ -43,6 +45,21 @@ export async function handleLogin(args: HandleLoginArgs): Promise<Response> {
       headers: { location: `/login?${params}` },
     });
   };
+
+  // A non-form body (bots posting JSON, an unreadable stream) is a failed
+  // attempt, not a 500 on this anonymous endpoint.
+  let form: FormData;
+  try {
+    form = await args.request.formData();
+  } catch {
+    return retry();
+  }
+
+  const parsed = loginSchema.safeParse({
+    username: form.get("username") ?? "",
+    password: form.get("password") ?? "",
+    next: form.get("next")?.toString() || undefined,
+  });
   if (!parsed.success) return retry();
 
   const { username, password, next } = parsed.data;
@@ -51,6 +68,7 @@ export async function handleLogin(args: HandleLoginArgs): Promise<Response> {
   });
   if (!result) return retry(next);
 
+  const url = new URL(args.request.url);
   const maxAge = Math.max(
     1,
     Math.floor((Date.parse(result.expiresAt) - Date.now()) / 1000),
@@ -66,7 +84,8 @@ export async function handleLogin(args: HandleLoginArgs): Promise<Response> {
 
 export const handler = define.handlers({
   GET: (ctx) => {
-    // Already signed in (middleware resolved a session): go home.
+    // Already signed in (middleware resolved a session on this open route):
+    // go home instead of showing the form again.
     if (ctx.state.identity) {
       return new Response(null, { status: 303, headers: { location: "/" } });
     }
@@ -79,7 +98,7 @@ export const handler = define.handlers({
     handleLogin({
       request: ctx.req,
       auth: ctx.state.services.auth,
-      sourceAddress: ctx.req.headers.get("x-forwarded-for") ?? undefined,
+      sourceAddress: sourceAddressFrom(ctx.req),
     }),
 });
 

@@ -19,6 +19,7 @@ import type {
 } from "../db/repositories/interfaces/mod.ts";
 import {
   DEFAULT_PBKDF2_ITERATIONS,
+  MIN_PASSWORD_LENGTH,
   type PasswordHasher,
   Pbkdf2PasswordHasher,
 } from "./password.ts";
@@ -112,6 +113,10 @@ export interface AuthService {
 
 const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8h (PRD Assumption 3)
 const API_KEY_PREFIX = "dfk_";
+// last_used_at is coarse "is this key live?" telemetry, not audited. Writing
+// it on every ingest request would cost a table write per push; a minute of
+// resolution is plenty, so we skip the write when the stamp is recent.
+const LAST_USED_THROTTLE_MS = 60_000;
 
 function sessionTtlFromEnv(): number {
   const hours = Number(Deno.env.get("DRAGONFLY_SESSION_TTL_HOURS"));
@@ -231,7 +236,11 @@ export class DefaultAuthService implements AuthService {
     if (!key) return null;
     const apiKey = await this.apiKeys.findActiveByKeyHash(await sha256Hex(key));
     if (!apiKey) return null;
-    await this.apiKeys.touchLastUsed(apiKey.id, new Date().toISOString());
+    const now = Date.now();
+    const last = apiKey.lastUsedAt ? Date.parse(apiKey.lastUsedAt) : 0;
+    if (now - last > LAST_USED_THROTTLE_MS) {
+      await this.apiKeys.touchLastUsed(apiKey.id, new Date(now).toISOString());
+    }
     return { kind: "connector", apiKeyId: apiKey.id, sourceName: apiKey.name };
   }
 
@@ -296,6 +305,16 @@ export class DefaultAuthService implements AuthService {
       console.warn(
         "dragonfly: users table is empty and DRAGONFLY_ADMIN_USERNAME/" +
           "DRAGONFLY_ADMIN_PASSWORD are not set — no one can sign in",
+      );
+      return null;
+    }
+    // The first admin is the highest-privilege account; hold it to the same
+    // password policy the admin API enforces on every other user rather than
+    // letting a weak env value through the service back door.
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      console.warn(
+        `dragonfly: DRAGONFLY_ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} ` +
+          "characters — initial admin not created",
       );
       return null;
     }

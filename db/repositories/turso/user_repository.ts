@@ -187,21 +187,33 @@ export class TursoUserRepository implements IUserRepository {
           merged.updatedAt,
           id,
         );
-        // Disabling a user revokes access immediately: their sessions die in
-        // the same transaction (auth PRD §3).
-        if (merged.status === "disabled" && before.status === "active") {
+        // Access revocation is immediate, in the same transaction (auth PRD
+        // §3): disabling a user OR resetting their password kills every live
+        // session, so a reset in response to a compromise takes effect now
+        // rather than at the 8h TTL.
+        const passwordChanged = patch.passwordHash !== undefined;
+        const nowDisabled = merged.status === "disabled" &&
+          before.status === "active";
+        if (passwordChanged || nowDisabled) {
           const killStmt = await this.db.prepare(
             "DELETE FROM sessions WHERE user_id = ?",
           );
           await killStmt.run(id);
         }
+        // The domain User carries no hash, so a password reset would otherwise
+        // produce an audit diff identical to a no-op. Mark the after-snapshot
+        // (never the hash itself) so the trail shows a credential changed —
+        // CIS Control 8 forensics (AGENTS.md §4.4).
+        const afterSnapshot = passwordChanged
+          ? { ...merged, passwordChanged: true }
+          : merged;
         await writeAuditEntry(this.db, {
           ...ctx,
           action: "update",
           entityType: "user",
           entityId: id,
           beforeJson: JSON.stringify(before),
-          afterJson: JSON.stringify(merged),
+          afterJson: JSON.stringify(afterSnapshot),
         });
         return merged;
       });

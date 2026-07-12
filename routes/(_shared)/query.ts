@@ -154,11 +154,10 @@ const pageOnlySchema = z.object({ ...paginationShape }).strict();
 export function parsePageQuery(
   search: URLSearchParams,
 ): ParseResult<PageRequest> {
-  const raw: Record<string, string> = {};
-  for (const [key, value] of search.entries()) raw[key] = value;
-  const parsed = pageOnlySchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error) };
-  return { ok: true, value: clampPage(parsed.data.limit, parsed.data.offset) };
+  // Reuse parseWith so the flatten/safeParse/clamp policy lives in one place;
+  // these lists have no filter vocabulary, so project just the page out.
+  const parsed = parseWith(pageOnlySchema, search, () => ({}));
+  return parsed.ok ? { ok: true, value: parsed.value.page } : parsed;
 }
 
 export function parseDeviceListQuery(

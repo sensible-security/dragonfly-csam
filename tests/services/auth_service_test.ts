@@ -1,7 +1,12 @@
 // AuthService tests (auth PRD §9.3): login/logout/session lifecycle over real
 // repositories on a temp DB, uniform failure for unknown/wrong/disabled,
 // API-key lifecycle, and bootstrap idempotence.
-import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import { withTempDb } from "../repositories/helpers.ts";
 import type { DatabaseConnection } from "@/db/repositories/turso/connection.ts";
 import { TursoUserRepository } from "@/db/repositories/turso/user_repository.ts";
@@ -109,6 +114,75 @@ Deno.test("disabling a user invalidates their already-issued sessions", async ()
 
     await auth.updateUser(user.id, { status: "disabled" }, CTX);
     assertEquals(await auth.resolveSession(login!.token), null);
+  });
+});
+
+Deno.test("resetting a password revokes live sessions and marks the audit entry", async () => {
+  await withTempDb(async (db) => {
+    const { auth, audit } = build(db);
+    const user = await auth.createUser({
+      username: "reset",
+      displayName: "Reset",
+      role: "analyst",
+      password: "a long valid password",
+    }, CTX);
+    const login = await auth.login("reset", "a long valid password", {});
+    assert(await auth.resolveSession(login!.token));
+
+    // A password reset (compromise response) must take effect immediately.
+    await auth.updateUser(
+      user.id,
+      { password: "an entirely new password" },
+      CTX,
+    );
+    assertEquals(await auth.resolveSession(login!.token), null);
+    assert(await auth.login("reset", "an entirely new password", {}));
+
+    // The audit trail records that a credential changed — without the hash.
+    const updates = await audit.query(
+      { entityType: "user", action: "update" },
+      PAGE,
+    );
+    assert(
+      updates.items[0].afterJson?.includes('"passwordChanged":true'),
+      "audit after-snapshot flags the credential change",
+    );
+    assert(
+      !updates.items[0].afterJson?.toLowerCase().includes("pbkdf2"),
+      "the password hash never reaches the audit log",
+    );
+  });
+});
+
+Deno.test("an API key can be revoked and reissued under the same source name", async () => {
+  await withTempDb(async (db) => {
+    const { auth } = build(db);
+    const first = await auth.createApiKey({ name: "nessus-dc1" }, CTX);
+
+    // A second ACTIVE key with the same name is rejected.
+    await assertRejects(() => auth.createApiKey({ name: "nessus-dc1" }, CTX));
+
+    // Revoking frees the name so a rotated key keeps the same provenance.
+    await auth.revokeApiKey(first.apiKey.id, CTX);
+    const second = await auth.createApiKey({ name: "nessus-dc1" }, CTX);
+    assertNotEquals(second.secret, first.secret);
+    assert(await auth.resolveApiKey(second.secret), "rotated key works");
+    assertEquals(await auth.resolveApiKey(first.secret), null, "old key dead");
+  });
+});
+
+Deno.test("bootstrapAdminFromEnv refuses a password below the minimum length", async () => {
+  await withTempDb(async (db) => {
+    const { auth } = build(db);
+    Deno.env.set("DRAGONFLY_ADMIN_USERNAME", "root");
+    Deno.env.set("DRAGONFLY_ADMIN_PASSWORD", "tooshort"); // 8 chars < 12
+    try {
+      assertEquals(await auth.bootstrapAdminFromEnv(), null);
+      assertEquals((await auth.listUsers(PAGE)).total, 0);
+    } finally {
+      Deno.env.delete("DRAGONFLY_ADMIN_USERNAME");
+      Deno.env.delete("DRAGONFLY_ADMIN_PASSWORD");
+    }
   });
 });
 

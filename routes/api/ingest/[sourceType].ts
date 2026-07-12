@@ -13,6 +13,8 @@ import {
   InvalidEnvelopeError,
   type SourceType,
 } from "../../../connectors/mod.ts";
+import type { AuthIdentity } from "../../../db/repositories/interfaces/mod.ts";
+import { auditContextFrom } from "../../(_shared)/context.ts";
 
 function errorResponse(
   status: number,
@@ -27,10 +29,10 @@ export interface HandleIngestArgs {
   request: Request;
   ingestion: IngestionService;
   registry: ConnectorRegistry;
-  // The connector identity resolved by the auth middleware; its sourceName is
-  // the API key's name (provenance + audit actor).
-  identity?: { kind: string; sourceName?: string };
-  sourceAddress?: string;
+  // The identity resolved by the auth middleware. Only a connector identity is
+  // valid here; its sourceName is the API key's name (provenance + audit
+  // actor). Typed as the shared union so it cannot drift from the real shape.
+  identity?: AuthIdentity;
 }
 
 // Exported for direct unit testing without booting the Fresh app.
@@ -54,8 +56,9 @@ export async function handleIngest(args: HandleIngestArgs): Promise<Response> {
   }
 
   // Defense in depth: the middleware guarantees a connector identity here,
-  // but direct calls (tests) and future wiring mistakes must fail closed.
-  if (identity?.kind !== "connector" || !identity.sourceName) {
+  // but direct calls (tests) and future wiring mistakes must fail closed. A
+  // session (user) identity is not a credential on this channel.
+  if (identity?.kind !== "connector") {
     return errorResponse(401, "invalid_api_key", "missing or invalid API key");
   }
 
@@ -71,11 +74,7 @@ export async function handleIngest(args: HandleIngestArgs): Promise<Response> {
       sourceType: sourceType as SourceType,
       sourceName: identity.sourceName,
       payload: body,
-    }, {
-      actorType: "connector",
-      actorId: identity.sourceName,
-      sourceAddress: args.sourceAddress,
-    });
+    }, auditContextFrom(request, identity));
     return Response.json(result);
   } catch (err) {
     if (err instanceof InvalidEnvelopeError) {
@@ -103,6 +102,5 @@ export const handler = define.handlers({
       ingestion: ctx.state.services.ingestion,
       registry: ctx.state.registry,
       identity: ctx.state.identity,
-      sourceAddress: ctx.req.headers.get("x-forwarded-for") ?? undefined,
     }),
 });

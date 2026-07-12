@@ -104,9 +104,72 @@ Deno.test("failed login lands back on /login with a generic flag, no cookie", as
 
 Deno.test("safeNext neutralizes open redirects", () => {
   assertEquals(safeNext("/devices"), "/devices");
+  assertEquals(
+    safeNext("/devices?status=authorized"),
+    "/devices?status=authorized",
+  );
   assertEquals(safeNext(undefined), "/");
   assertEquals(safeNext("https://evil.example/"), "/");
   assertEquals(safeNext("//evil.example"), "/");
+  // Backslash forms browsers normalize into a protocol-relative authority.
+  assertEquals(safeNext("/\\evil.example"), "/");
+  assertEquals(safeNext("\\/evil.example"), "/");
+  // Control chars that browsers strip could re-form an authority.
+  assertEquals(safeNext("/\tevil"), "/");
+  assertEquals(safeNext("/\nevil"), "/");
+});
+
+Deno.test("handleLogin treats a non-form body as a failed attempt, not a 500", async () => {
+  await withTempDb(async (db) => {
+    const auth = buildAuth(db);
+    const res = await handleLogin({
+      request: new Request("http://localhost/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+      auth,
+    });
+    assertEquals(res.status, 303);
+    assert(res.headers.get("location")!.startsWith("/login?error=1"));
+    assertEquals(res.headers.get("set-cookie"), null);
+  });
+});
+
+Deno.test("createUser rejects a 2-char username and a sub-12-char password", async () => {
+  await withTempDb(async (db) => {
+    const auth = buildAuth(db);
+    for (
+      const bad of [
+        {
+          username: "ab",
+          displayName: "AB",
+          role: "analyst",
+          password: PASSWORD,
+        },
+        {
+          username: "valid.name",
+          displayName: "V",
+          role: "analyst",
+          password: "only11chars",
+        },
+      ]
+    ) {
+      const res = await createUser(auth, bad, CTX);
+      assertEquals(res.status, 400);
+      assertEquals((await res.json()).error.code, "validation_error");
+    }
+    // A 3-char username at the boundary is accepted.
+    assertEquals(
+      (await createUser(auth, {
+        username: "abc",
+        displayName: "ABC",
+        role: "analyst",
+        password: PASSWORD,
+      }, CTX)).status,
+      201,
+    );
+  });
 });
 
 Deno.test("POST /logout revokes the session and clears the cookie", async () => {

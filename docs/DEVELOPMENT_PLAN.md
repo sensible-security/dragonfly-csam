@@ -80,7 +80,10 @@ Deviations from the Gemini playbook are deliberate: the connector/ingestion pipe
 **Prompt 5.2 — Review**
 > /review Adopt the code-reviewer and security-auditor personas. Verify: Repository Pattern intact (no SQL/client leakage), connector pipeline not bypassed anywhere, taxonomy enums enforced by both TypeScript and SQL CHECK constraints, all external input Zod-validated, no secrets or PII in logs, Beer CSS semantics and accessibility (labels, table headers, dialog focus), API error handling consistent. Produce a remediation list; fix items via /build slices.
 
-**Gate:** review remediations complete; `deno task check` and full test suite green.
+**Prompt 5.3 — Programmatic API read access (AGENTS.md §4.3, NIST CSF GV)**
+> /spec then /build Close the §4.3 gap surfaced in the 5.2 review: API keys currently authenticate only `/api/ingest/`, and the sole session issuer is the form-encoded login page, so SIEM/GRC/dashboard tooling has no programmatic credential for the read APIs (`GET /api/devices`, `/api/software`, `/api/source-records`, `/api/audit-log`, `/api/review-queue`). Extend the auth guard so a connector API key authenticates read-only (GET/HEAD) access to the JSON inventory/read endpoints in addition to ingest, while still being refused on UI routes and on every mutation and admin endpoint (an API key grants no write access anywhere; a session cookie is still not a credential for ingest — keep the channel separation explicit). Reconcile AGENTS.md §8 ("all routes require authentication except health checks") and the guard's open-route/exemption list (health, login, static assets) with the auth PRD assumptions so the authoritative doc matches the code. Add guard tests: an API key GETs `/api/devices` (resolves a connector identity), is rejected on `POST /api/devices`, on `/api/admin/*`, and on UI routes.
+
+**Gate:** review remediations complete; API keys read the inventory JSON APIs but cannot write or reach admin/UI routes; `deno task check` and full test suite green.
 
 ---
 

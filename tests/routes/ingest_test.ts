@@ -5,9 +5,14 @@
 // 404. handleIngest is called directly so no Fresh app boot is required.
 import { assertEquals } from "@std/assert";
 import { handleIngest } from "@/routes/api/ingest/[sourceType].ts";
+import type { AuthIdentity } from "@/db/repositories/interfaces/mod.ts";
 import { withStack } from "../services/stack.ts";
 
-const CONNECTOR = { kind: "connector", sourceName: "nessus" };
+const CONNECTOR: AuthIdentity = {
+  kind: "connector",
+  apiKeyId: "key-1",
+  sourceName: "nessus",
+};
 const PAGE = { limit: 100, offset: 0 };
 
 function req(body: unknown): Request {
@@ -33,13 +38,12 @@ const ENVELOPE = {
 
 Deno.test("ingest fails closed without a connector identity", async () => {
   await withStack(async (s) => {
-    for (
-      const identity of [
-        undefined,
-        // A session identity is not a credential here (PRD Assumption 11).
-        { kind: "user", sourceName: undefined },
-      ]
-    ) {
+    const nonConnectors: (AuthIdentity | undefined)[] = [
+      undefined,
+      // A session identity is not a credential here (PRD Assumption 11).
+      { kind: "user", userId: "u1", username: "ariel", role: "analyst" },
+    ];
+    for (const identity of nonConnectors) {
       const res = await handleIngest({
         sourceType: "scanner_json",
         request: req(ENVELOPE),

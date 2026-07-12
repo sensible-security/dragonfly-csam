@@ -44,10 +44,14 @@ CREATE INDEX idx_sessions_user ON sessions (user_id);
 -- api_keys — connector principals (PRD Assumption 6). Replaces the Phase 3
 -- DRAGONFLY_INGEST_KEYS env stub. name doubles as the ingest source name;
 -- the key itself is shown once at creation and stored only as SHA-256.
+-- name is unique only among ACTIVE keys (partial index below), so a
+-- compromised key can be revoked and reissued under the SAME source name —
+-- rotation without breaking provenance continuity. Rows are never deleted,
+-- so revoked keys keep their name for the historical audit trail.
 -- ---------------------------------------------------------------------------
 CREATE TABLE api_keys (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   key_hash TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'revoked')),
@@ -55,3 +59,6 @@ CREATE TABLE api_keys (
   revoked_at TEXT,
   last_used_at TEXT
 );
+
+CREATE UNIQUE INDEX idx_api_keys_active_name
+  ON api_keys (name) WHERE status = 'active';

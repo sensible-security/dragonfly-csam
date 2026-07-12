@@ -7,11 +7,18 @@ import type {
   AuthIdentity,
 } from "../../db/repositories/interfaces/mod.ts";
 
+// The client address for audit/provenance, from the proxy header. Single
+// source of truth so a future hardening (trusted-proxy list, first-hop only)
+// changes one place instead of every handler.
+export function sourceAddressFrom(req: Request): string | undefined {
+  return req.headers.get("x-forwarded-for") ?? undefined;
+}
+
 export function auditContextFrom(
   req?: Request,
   identity?: AuthIdentity,
 ): AuditContext {
-  const sourceAddress = req?.headers.get("x-forwarded-for") ?? undefined;
+  const sourceAddress = req ? sourceAddressFrom(req) : undefined;
   if (identity?.kind === "user") {
     return { actorType: "user", actorId: identity.username, sourceAddress };
   }

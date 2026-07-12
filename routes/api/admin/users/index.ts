@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { define } from "../../../../utils.ts";
 import type { AuthService } from "../../../../services/auth_service.ts";
+import { MIN_PASSWORD_LENGTH } from "../../../../services/password.ts";
 import { USER_ROLES } from "../../../../db/repositories/interfaces/mod.ts";
 import type { AuditContext } from "../../../../db/repositories/interfaces/mod.ts";
 import { parseBody } from "../../../(_shared)/body.ts";
@@ -15,13 +16,16 @@ import { auditContextFrom, readJsonBody } from "../../../(_shared)/context.ts";
 import { parsePageQuery } from "../../../(_shared)/query.ts";
 
 export const createUserSchema = z.object({
+  // 3-64 chars: an alphanumeric start and end with dot/underscore/hyphen
+  // allowed between. The inner {1,62} forces a length of exactly 3-64
+  // (never 2), matching the message.
   username: z.string().regex(
-    /^[a-z0-9](?:[a-z0-9._-]{1,62}[a-z0-9])?$/i,
+    /^[a-z0-9][a-z0-9._-]{1,62}[a-z0-9]$/i,
     "3-64 chars: letters, digits, dot, underscore, hyphen",
   ),
   displayName: z.string().min(1).max(128),
   role: z.enum(USER_ROLES),
-  password: z.string().min(12).max(1024),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(1024),
 }).strict();
 
 // Exported for direct unit testing without booting the Fresh app.

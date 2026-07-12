@@ -1,15 +1,28 @@
-// AuditContext for route-initiated writes (routes PRD §3). Phase 4 uses a
-// fixed placeholder actor; Phase 5 swaps in the session identity here — one
-// function, no re-plumbing of handlers. Source address comes from the proxy
-// header when present.
-import type { AuditContext } from "../../db/repositories/interfaces/mod.ts";
+// AuditContext for route-initiated writes (routes PRD §3, auth PRD §7): the
+// authenticated identity from ctx.state becomes the audit actor. The
+// no-argument form (direct handler calls in tests) falls back to the system
+// actor. Source address comes from the proxy header when present.
+import type {
+  AuditContext,
+  AuthIdentity,
+} from "../../db/repositories/interfaces/mod.ts";
 
-export function auditContextFrom(req?: Request): AuditContext {
-  return {
-    actorType: "user",
-    actorId: "system", // Phase 5: authenticated identity
-    sourceAddress: req?.headers.get("x-forwarded-for") ?? undefined,
-  };
+export function auditContextFrom(
+  req?: Request,
+  identity?: AuthIdentity,
+): AuditContext {
+  const sourceAddress = req?.headers.get("x-forwarded-for") ?? undefined;
+  if (identity?.kind === "user") {
+    return { actorType: "user", actorId: identity.username, sourceAddress };
+  }
+  if (identity?.kind === "connector") {
+    return {
+      actorType: "connector",
+      actorId: identity.sourceName,
+      sourceAddress,
+    };
+  }
+  return { actorType: "system", actorId: "system", sourceAddress };
 }
 
 // Reads a JSON body, mapping malformed JSON to a structured 400 (never a

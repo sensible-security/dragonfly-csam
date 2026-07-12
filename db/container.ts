@@ -16,6 +16,9 @@ import { TursoSoftwareRepository } from "./repositories/turso/software_repositor
 import { TursoSourceRecordRepository } from "./repositories/turso/source_record_repository.ts";
 import { TursoIngestionBatchRepository } from "./repositories/turso/ingestion_batch_repository.ts";
 import { TursoReviewQueueRepository } from "./repositories/turso/review_queue_repository.ts";
+import { TursoUserRepository } from "./repositories/turso/user_repository.ts";
+import { TursoSessionRepository } from "./repositories/turso/session_repository.ts";
+import { TursoApiKeyRepository } from "./repositories/turso/api_key_repository.ts";
 import type {
   IAuditLogRepository,
   IDeviceRepository,
@@ -41,6 +44,10 @@ import {
   DefaultReviewService,
   type ReviewService,
 } from "../services/review_service.ts";
+import {
+  type AuthService,
+  DefaultAuthService,
+} from "../services/auth_service.ts";
 
 // The typed bundle exposed via Fresh app state. Interface types only — no
 // driver, no concrete class, no SQL leaks past this boundary.
@@ -61,6 +68,7 @@ export interface Services {
   readonly ingestion: IngestionService;
   readonly reconciliation: ReconciliationService;
   readonly review: ReviewService;
+  readonly auth: AuthService;
 }
 
 export interface Container {
@@ -135,8 +143,15 @@ export async function createContainer(
     reviewQueue: repositories.reviewQueue,
     auditLog: repositories.auditLog,
   });
+  // Auth repositories stay private to the AuthService (auth PRD §5): routes
+  // reach users/sessions/api keys only through that interface, never raw.
+  const auth = new DefaultAuthService({
+    users: new TursoUserRepository(db),
+    sessions: new TursoSessionRepository(db),
+    apiKeys: new TursoApiKeyRepository(db),
+  });
 
-  const services: Services = { ingestion, reconciliation, review };
+  const services: Services = { ingestion, reconciliation, review, auth };
 
   return {
     repositories,

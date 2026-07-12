@@ -1,6 +1,7 @@
 import { createDefine } from "fresh";
 import type { Repositories, Services } from "./db/container.ts";
 import type { ConnectorRegistry } from "./connectors/mod.ts";
+import type { AuthIdentity } from "./db/repositories/interfaces/mod.ts";
 
 /**
  * Shape of `ctx.state` shared among middlewares, layouts and routes.
@@ -13,6 +14,9 @@ export interface State {
   repositories: Repositories;
   services: Services;
   registry: ConnectorRegistry;
+  // Resolved by the auth middleware (services/http_auth.ts); absent only on
+  // the open routes (/api/health, /login, static assets).
+  identity?: AuthIdentity;
 }
 
 export const define = createDefine<State>();

@@ -7,7 +7,7 @@ import { insertRow, validNetworkInterfaceRow, withTempDb } from "./helpers.ts";
 Deno.test("migrate applies all migrations to a fresh database and reruns are no-ops", async () => {
   const dir = await Deno.makeTempDir({ prefix: "dragonfly-migrate-" });
   const dbPath = join(dir, "test.db");
-  const ALL = ["0001_initial.sql", "0002_ingestion.sql"];
+  const ALL = ["0001_initial.sql", "0002_ingestion.sql", "0003_auth.sql"];
   try {
     const first = await migrate(dbPath);
     assertEquals(first.applied, ALL);
@@ -39,6 +39,9 @@ Deno.test("migrate applies all migrations to a fresh database and reruns are no-
           "ingestion_batches",
           "ingestion_errors",
           "review_queue",
+          "users",
+          "sessions",
+          "api_keys",
         ]
       ) {
         const probe = await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`);

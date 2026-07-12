@@ -11,3 +11,4 @@ export * from "./service_provider.ts";
 export * from "./audit.ts";
 export * from "./source_record.ts";
 export * from "./ingestion.ts";
+export * from "./auth.ts";

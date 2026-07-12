@@ -1,15 +1,13 @@
-// Authenticated push-ingest endpoint (PRD §9.3): POST /api/ingest/{sourceType}.
-// Machine-to-machine — auth is an API-key STUB (Phase 5 replaces it). The handler
-// resolves the connector by the path segment, authenticates the key → source
-// identity, hands the JSON body to the pipeline, and returns the batch result.
-// It imports only services + the registry (no SQL/driver) — architecture-boundary
-// test covers this. /api/health remains the only unauthenticated route.
+// Authenticated push-ingest endpoint (ingestion PRD §9.3, auth PRD §6):
+// POST /api/ingest/{sourceType}. Machine-to-machine — the auth middleware
+// resolves the API key to a connector identity (DB-backed keys, auth PRD
+// Assumption 6) before this handler runs; a session cookie is not a
+// credential here. The handler resolves the connector by the path segment,
+// hands the JSON body to the pipeline, and returns the batch result. It
+// imports only services + the registry (no SQL/driver) — architecture-
+// boundary test covers this.
 import { define } from "../../../utils.ts";
 import type { IngestionService } from "../../../services/ingestion_service.ts";
-import {
-  loadIngestKeysFromEnv,
-  resolveIngestIdentity,
-} from "../../../services/ingest_auth.ts";
 import {
   type ConnectorRegistry,
   InvalidEnvelopeError,
@@ -29,13 +27,15 @@ export interface HandleIngestArgs {
   request: Request;
   ingestion: IngestionService;
   registry: ConnectorRegistry;
-  keys: Map<string, string>;
+  // The connector identity resolved by the auth middleware; its sourceName is
+  // the API key's name (provenance + audit actor).
+  identity?: { kind: string; sourceName?: string };
   sourceAddress?: string;
 }
 
 // Exported for direct unit testing without booting the Fresh app.
 export async function handleIngest(args: HandleIngestArgs): Promise<Response> {
-  const { sourceType, request, ingestion, registry, keys } = args;
+  const { sourceType, request, ingestion, registry, identity } = args;
 
   const connector = registry.get(sourceType as SourceType);
   if (!connector) {
@@ -53,9 +53,10 @@ export async function handleIngest(args: HandleIngestArgs): Promise<Response> {
     );
   }
 
-  const identity = resolveIngestIdentity(request.headers, keys);
-  if (!identity) {
-    return errorResponse(401, "unauthorized", "missing or invalid API key");
+  // Defense in depth: the middleware guarantees a connector identity here,
+  // but direct calls (tests) and future wiring mistakes must fail closed.
+  if (identity?.kind !== "connector" || !identity.sourceName) {
+    return errorResponse(401, "invalid_api_key", "missing or invalid API key");
   }
 
   let body: unknown;
@@ -101,7 +102,7 @@ export const handler = define.handlers({
       request: ctx.req,
       ingestion: ctx.state.services.ingestion,
       registry: ctx.state.registry,
-      keys: loadIngestKeysFromEnv(),
+      identity: ctx.state.identity,
       sourceAddress: ctx.req.headers.get("x-forwarded-for") ?? undefined,
     }),
 });

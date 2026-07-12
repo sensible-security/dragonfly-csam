@@ -40,6 +40,10 @@ export const handler = define.handlers({
   POST: async (ctx) => {
     const body = await readJsonBody(ctx.req);
     if (!body.ok) return body.response;
-    return importCsv(ctx.state, body.value, auditContextFrom(ctx.req));
+    return importCsv(
+      ctx.state,
+      body.value,
+      auditContextFrom(ctx.req, ctx.state.identity),
+    );
   },
 });

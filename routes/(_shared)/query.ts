@@ -148,6 +148,19 @@ function parseWith<S extends z.ZodTypeAny, F>(
   };
 }
 
+// Pagination-only lists (admin users/api-keys): no filter vocabulary yet.
+const pageOnlySchema = z.object({ ...paginationShape }).strict();
+
+export function parsePageQuery(
+  search: URLSearchParams,
+): ParseResult<PageRequest> {
+  const raw: Record<string, string> = {};
+  for (const [key, value] of search.entries()) raw[key] = value;
+  const parsed = pageOnlySchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error) };
+  return { ok: true, value: clampPage(parsed.data.limit, parsed.data.offset) };
+}
+
 export function parseDeviceListQuery(
   search: URLSearchParams,
 ): ParseResult<ListQuery<DeviceFilter>> {

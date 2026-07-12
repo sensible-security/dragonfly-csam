@@ -56,7 +56,7 @@ export const handler = define.handlers({
       ctx.state.repositories,
       ctx.params.id,
       body.value,
-      auditContextFrom(ctx.req),
+      auditContextFrom(ctx.req, ctx.state.identity),
     );
   },
 });
